@@ -4336,6 +4336,48 @@ def apd_mp_yib():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+    
+# Fees Taxability ---
+@app.route("/get/fees_taxability", methods=["POST"])
+def get_fees_taxability():
+    print("=== FEES TAXABILITY ENDPOINT CALLED ===")
+    try:
+        data = request.json
+        state_code = data.get("state_code")
+        print(f"State Code: {state_code}")
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        sql = """
+            SELECT coverage_type, uw_fee_taxability, broker_fee_taxability, policy_fee_taxability
+            FROM fees_taxability
+            WHERE state_code = %s;
+        """
+        cur.execute(sql, (state_code,))
+        results = cur.fetchall()
+        
+        print(f"Found {len(results)} rows")
+        
+        taxability_list = []
+        for row in results:
+            taxability_list.append({
+                "coverage_type": row[0],
+                "uw_fee_taxability": row[1],
+                "broker_fee_taxability": row[2],
+                "policy_fee_taxability": row[3]
+            })
+        
+        cur.close()
+        conn.close()
+        
+        print(f"Returning: {taxability_list}")
+        return jsonify(taxability_list)
+    except Exception as e:
+        print(f"Fees Taxability Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 # --- POLICY FEE LOOKUP ENDPOINT ---
 @app.route("/get/policy_fee", methods=["POST"])
@@ -5724,44 +5766,8 @@ def rate_bipd():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-# Fees Taxability ---
-@app.route("/get/fees_taxability", methods=["POST"])
-def get_fees_taxability():
-    print("=== FEES TAXABILITY ENDPOINT CALLED ===")
-    try:
-        data = request.json
-        state_code = data.get("state_code")
-        print(f"State Code: {state_code}")
-        
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        sql = """
-            SELECT coverage_type, uw_fee_taxability, broker_fee_taxability, policy_fee_taxability
-            FROM fees_taxability
-            WHERE state_code = %s;
-        """
-        cur.execute(sql, (state_code,))
-        results = cur.fetchall()
-        
-        print(f"Found {len(results)} rows")
-        
-        taxability_list = []
-        for row in results:
-            taxability_list.append({
-                "coverage_type": row[0],
-                "uw_fee_taxability": row[1],
-                "broker_fee_taxability": row[2],
-                "policy_fee_taxability": row[3]
-            })
-        
-        cur.close()
-        conn.close()
-        
-        print(f"Returning: {taxability_list}")
-        return jsonify(taxability_list)
-    except Exception as e:
-        print(f"Fees Taxability Error: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+
+    
+@app.route("/test", methods=["GET"])
+def test():
+    return jsonify({"status": "working"})
