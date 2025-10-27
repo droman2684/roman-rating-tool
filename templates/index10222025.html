@@ -1,0 +1,2178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cover Whale - Rating Validator</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 900px; margin: 40px auto; background-color: #F8F8FA; color: #1A1A1A; }
+    div { margin-bottom: 15px; }
+    h2 { color: #6B4C9A; }
+    h3 { margin-top: 25px; margin-bottom: 15px; border-bottom: 2px solid #6B4C9A; padding-bottom: 10px; color: #6B4C9A; }
+    label { display: block; margin-bottom: 5px; font-weight: 600; }
+    input[type="date"], input[type="number"], select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 1.2em; }
+    input[type="text"],  select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 1em; }
+    input[type="number"].fee-input { text-align: right; }
+    input[type="checkbox"]  { margin-right: 2px; transform: scale(1.1); }
+    button { padding: 12px 15px; background-color: #6B4C9A; color: #FFFFFF; border: none; cursor: pointer; width: 100%; font-size: 1.1em; font-weight: 600; border-radius: 5px; }
+    button:hover { background-color: #5a3d82; }
+    #result { margin-top: 10px; }
+    .coverage-section, .vehicle-section, .section { border: 1px solid #EAEAEA; padding: 15px; border-radius: 8px; background-color: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .tria-section  { margin-top: 15px; margin-bottom: 15px;  background-color: #FFFFFF;  }
+    .check-label { font-weight: 500; display: inline; }
+    .sub-options { margin-top: 15px; padding-left: 10px; border-left: 2px solid #F0F0F0; }
+    .result-premium-box, .result-totals-box { background-color: #FFFFFF; border: 1px solid #EAEAEA; border-radius: 8px; padding: 15px; margin-bottom: 10px; font-size: 1.1em; line-height: 1.6; }
+    .result-premium-box strong, .result-totals-box strong { color: #1A1A1A; }
+    .coverage-total-due { font-weight: bold; margin-top: 10px; display: block; }
+    .grand-total { font-size: 1.2em; font-weight: 600; color: #FFFFFF; background-color: #6B4C9A; display: block; text-align: right; margin-top: 15px; padding: 12px; border-radius: 8px; }
+    .date-label-container { border: 1px solid #EAEAEA; padding: 15px; border-radius: 8px; background-color: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .date-button { padding: 4px 15px; font-size: 0.8em; font-weight: 600; background-color: #eee; color: #333; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; width: auto; }
+    hr.result-divider { border: 0; border-top: 1px solid #F0F0F0; margin: 10px 0; }
+    .policy-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; margin-bottom: 12px; }
+    .policy-row { display: flex; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: end; margin-bottom: 10px; }
+    .policy-row .inline { display: flex; gap: 5px; align-items: center; }
+    .policy-row .inline label { margin: 0; font-weight: 500; }
+    .vehicle-row .remove-btn { background: #eee; color: #333; border: 1px solid #ccc; padding: 5px; border-radius: 5px; cursor: pointer; width: 100%; }
+    .loss-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: end; margin-bottom: 10px; }
+    .vehicle-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; margin-bottom: 12px; }
+    .vehicle-row .inline { display: flex; gap: 8px; align-items: center; }
+    .vehicle-row .inline label { margin: 0; font-weight: 500; }
+    .vehicle-row .remove-btn { background: #eee; color: #333; border: 1px solid #ccc; padding: 10px; border-radius: 6px; cursor: pointer; width: 100%; }
+    .add-vehicle-btn { background: #8B6FB8; }
+    .add-vehicle-btn:hover { background: #7a5ea5; }
+    .driver-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 12px; align-items: end; margin-bottom: 12px; }
+    .driver-row .remove-btn { background: #eee; color: #333; border: 1px solid #ccc; padding: 10px; border-radius: 6px; cursor: pointer; width: 100%; }
+    .readonly { background-color: #F5F5F5; color: #555; }
+    table.taxability { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    table.taxability th, table.taxability td { padding: 8px; border-bottom: 1px solid #EEE; }
+    table.taxability th { background-color: #F0F0F0; text-align: left; }
+    .muted { color: #666; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+
+  <h2>Cover Whale - Rating Validation Tool (Internal Use Only)</h2>
+
+  <h3>Policy Attributes</h3>
+
+  <div>
+    <div class="coverage-section">
+       <div class="policy-row">
+         <label for="eff_date">Effective Date:</label> 
+       <input type="date" id="eff_date" onchange="lookupRatingPlan()">
+      </div>
+    
+      
+         <div class="policy-row">
+                  
+                  <label for="zip_code">Zip Code:</label> 
+                  <input type="text" id="zip_code" maxlength="5" pattern="\d{5}" title="Enter a 5-digit zip code" oninput="handleZipInput(this)">
+          
+                 <label for="state_code">State:</label> 
+                 <select id="state_code" name="state_code" onchange="lookupRatingPlan()">
+                    <option value="">-- Select State --</option>
+                    <option value="AL">AL</option><option value="AZ">AZ</option><option value="AR">AR</option>
+                    <option value="CA">CA</option><option value="CO">CO</option><option value="CT">CT</option>
+                    <option value="DE">DE</option><option value="DC">DC</option><option value="FL">FL</option>
+                    <option value="GA">GA</option><option value="ID">ID</option><option value="IL">IL</option>
+                    <option value="IN">IN</option><option value="IA">IA</option><option value="KS">KS</option>
+                    <option value="KY">KY</option><option value="LA">LA</option><option value="ME">ME</option>
+                    <option value="MD">MD</option><option value="MA">MA</option><option value="MI">MI</option>
+                    <option value="MN">MN</option><option value="MS">MS</option><option value="MO">MO</option>
+                    <option value="MT">MT</option><option value="NE">NE</option><option value="NV">NV</option>
+                    <option value="NH">NH</option><option value="NJ">NJ</option><option value="NM">NM</option>
+                    <option value="NY">NY</option><option value="NC">NC</option><option value="ND">ND</option>
+                    <option value="OH">OH</option><option value="OK">OK</option><option value="OR">OR</option>
+                    <option value="PA">PA</option><option value="RI">RI</option><option value="SC">SC</option>
+                    <option value="SD">SD</option><option value="TN">TN</option><option value="TX">TX</option>
+                    <option value="UT">UT</option><option value="VT">VT</option><option value="VA">VA</option>
+                    <option value="WA">WA</option><option value="WV">WV</option><option value="WI">WI</option>
+                    <option value="WY">WY</option>
+                 </select>
+          </div>
+
+          <div class="policy-row">                        
+                 <label for="businessusetype">Business Use Type:</label> 
+                 <select id="businessusetype" name="businessusetype">
+                  <option value="">-- Select Business Use Type --</option>
+                    <option value="AUTOHAULER">AUTOHAULER</option>
+                    <option value="HOTSHOT">HOTSHOT</option>                  
+                    <option value="TRUCKINGDRYVAN">TRUCKINGDRYVAN</option>
+                    <option value="UIIAINTERMODAL">UIIAINTERMODAL</option>
+                     <option value="SANDGRAVEL">SANDGRAVEL</option>
+                 </select>
+          </div>
+
+          <div class="policy-row">                        
+                 <label for="state_code">Telematics Type:</label> 
+                 <select id="telematics_type" name="telematics_type">
+                  <option value="">-- Select Telematics Type --</option>
+                    <option value="ELD">ELD</option>
+                    <option value="DASHCAM">DASHCAM</option>
+                 </select>
+          </div>
+
+             <div class="policy-row">                        
+                 <label for="yearsinbusiness">Years in Business:</label> 
+                 <input type="text" id="yearsinbusiness" maxlength="3"  title="Enter Years in Business">
+
+                 <label for="oosviolations">USDOT Violations:</label> 
+                 <input type="text" id="oosviolations" maxlength="3"  title="Enter # of USDOT Violations">
+
+                 <label for="basicviolations">Basic Violations:</label> 
+                 <input type="text" id="basicviolations" maxlength="3"  title="Enter # of Basic Violations">
+             </div>
+
+          
+           <div class="tria-section">
+             <input type="checkbox" id="check_tria" name="check_tria">
+             <label for="check_tria" class="check-label">Include TRIA Coverage (MTC and TGL only)</label>
+           </div>
+        
+
+    </div>
+           
+<h3>Loss Run Attributes</h3>
+  <div>
+    <div class="coverage-section">   
+        <div>
+         <b>Auto Liability Loss Details (Loss Amounts)</b>  
+        </div>  
+         <div class="loss-row">                        
+                 <label for="allossesyear1">AL Losses (1):</label> 
+                 <input type="text" id="allossesyear1" maxlength="7">
+
+                <label for="allossesyear2">AL Losses (2):</label> 
+                 <input type="text" id="allossesyear2" maxlength="7"> 
+                 
+                <label for="allossesyear3">AL Losses (3):</label> 
+                <input type="text" id="allossesyear3" maxlength="7">   
+         </div> 
+         
+        <div>
+         <b>Auto Liability Loss Details (# of Claims)</b>  
+        </div>  
+         <div class="loss-row">                        
+                 <label for="alclaimsyear1">AL Claims Paid (1):</label> 
+                 <input type="text" id="alclaimsyear1" maxlength="3">
+
+                <label for="alclaimsyear2">AL Claims Paid (2):</label> 
+                <input type="text" id="alclaimsyear2" maxlength="3"> 
+                 
+                <label for="alclaimsyear3">AL Claims Paid (3):</label> 
+                <input type="text" id="alclaimsyear3" maxlength="3">   
+         </div> 
+
+                 <div>
+         <b>Auto Physical Damage Loss Details (Loss Amounts)</b>  
+        </div>  
+         <div class="loss-row">                        
+                 <label for="apdlossesyear1">APD Losses (1):</label> 
+                 <input type="text" id="apdlossesyear1" maxlength="7">
+
+                <label for="apdlossesyear2">APD Losses (2):</label> 
+                 <input type="text" id="apdlossesyear2" maxlength="7"> 
+                 
+                <label for="apdlossesyear3">APD Losses (3):</label> 
+                <input type="text" id="apdlossesyear3" maxlength="7">   
+         </div> 
+         
+        <div>
+         <b>Auto Physical Damage Loss Details (# of Claims)</b>  
+        </div>  
+         <div class="loss-row">                        
+                 <label for="apdclaimsyear1">APD Claims Paid (1):</label> 
+                 <input type="text" id="apdclaimsyear1" maxlength="3">
+
+                <label for="apdclaimsyear2">APD Claims Paid (2):</label> 
+                <input type="text" id="apdclaimsyear2" maxlength="3"> 
+                 
+                <label for="apdclaimsyear3">APD Claims Paid (3):</label> 
+                <input type="text" id="apdclaimsyear3" maxlength="3">   
+         </div> 
+    </div>
+ 
+<h3>Radius Attributes (enter as a full number - example: 25 will convert to 25%)</h3>
+<div class="coverage-section"> 
+   <div class="loss-row">                        
+      <label for="radius0">Radius 0-50:</label> 
+     <input type="number" id="radius0" maxlength="5">
+
+      <label for="radius51">Radius 51-200:</label> 
+      <input type="number" id="radius51" maxlength="5"> 
+                 
+      <label for="radius201">Radius 201-500:</label> 
+      <input type="number" id="radius201" maxlength="5"> 
+    
+      <label for="radius501">Radius 501+:</label> 
+      <input type="number" id="radius501" maxlength="5">   
+   </div> 
+   </div>
+         
+
+  <!-- Driver Attributes -->
+  <h3>Driver Attributes</h3>
+  <div class="vehicle-section">
+    <div id="driver_container">
+      <!-- Driver rows will be injected here -->
+    </div>
+    <button type="button" class="add-vehicle-btn" id="add_driver_btn">+ Add Driver</button>
+  </div>
+
+  <div class="coverage-section" style="background-color: #F8F8FA; box-shadow: none; border: none; padding: 0;">
+    <div style="display: flex; gap: 15px;">
+      <div style="flex: 1;">
+        <label for="num_drivers">Number of Drivers:</label>
+        <input title="Auto-calculated from Driver Attributes" class="readonly" type="number" id="num_drivers" value="0" readonly>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vehicle Attributes -->
+  <h3>Vehicle Attributes</h3>
+  <div class="vehicle-section">
+    <div id="vehicle_container">
+      <!-- Vehicle rows will be injected here -->
+    </div>
+    <button type="button" class="add-vehicle-btn" id="add_vehicle_btn">+ Add Vehicle</button>
+    <div class="muted" style="margin-top:8px;">Check <strong>Power Unit</strong> to increment <em>Number of Vehicles</em>, and check <strong>Trailer</strong> to increment <em>Number of Trailers</em>.</div>
+  </div>
+
+  <div class="coverage-section" style="background-color: #F8F8FA; box-shadow: none; border: none; padding: 0;">
+    <div style="display: flex; gap: 15px;">
+      <div style="flex: 1;">
+        <label for="num_vehicles">Number of Vehicles:</label>
+        <input title="Auto-calculated from Vehicle Attributes" class="readonly" type="number" id="num_vehicles" value="0" readonly>
+      </div>
+      <div style="flex: 1;">
+        <label for="num_trailers">Number of Trailers:</label>
+        <input title="Auto-calculated from Vehicle Attributes" class="readonly" type="number" id="num_trailers" value="0" readonly>
+      </div>
+    </div>
+  </div>
+
+ 
+
+  <h3 style="margin-top: 30px;">Coverages</h3>
+
+
+  <div class="coverage-section">
+    <input type="checkbox" id="check_al" name="check_al">
+    <label for="check_al" class="check-label">Auto Liability (work in progress) </label>
+    <div class="sub-options">
+        <label for="al_carrier">Auto Liability Carrier:</label>
+
+     <div class="sub-options">
+        <select id="al_carrier" onchange="lookupRatingPlan()">
+            <option value="">Select Carrier</option>
+            <option value="Ascot">Ascot</option>
+            <option value="Accredited">Accredited</option>
+            <option value="Everspan Munich Non-Admitted">Everspan Munich Non-Admitted</option>
+        </select>
+    </div>
+
+    <div class="sub-options">
+            <label for="carrier_plan">Rating Plan:</label>
+            <select id="carrier_plan" name="carrier_plan">
+                 <option value="">Select Rating Plan</option>
+            <option value="CW Plan">CW Plan</option>
+            <option value="Non Admitted">Non Admitted</option>
+        </select>
+        </div>
+    </div>
+
+
+     <div class="sub-options">
+      <label for="al_limit">AL Limit:</label>
+
+     <div class="sub-options"></div> 
+      <select id="al_limit">
+        <option value="Select Limit">Select Limit</option>
+        <option value="750000">$750,000</option>
+        <option value="1000000">$1,000,000</option>
+      </select>
+    </div>
+
+     <div class="sub-options">
+        <input type="checkbox" id="check_um" name="check_um">
+        <label for="check_um" class="check-label">Uninsured Motorists </label>
+     </div>
+
+     <div class="sub-options">
+        <input type="checkbox" id="check_uim" name="check_uim">
+        <label for="check_uim" class="check-label">Underinsured Motorists </label>
+     </div>
+
+      <div class="sub-options">
+        <input type="checkbox" id="check_mp" name="check_mp">
+        <label for="check_mp" class="check-label">Medical Payments</label>
+     </div>
+
+      <div class="sub-options">
+        <input type="checkbox" id="check_pip" name="check_pip">
+        <label for="check_pip" class="check-label">Personal Injury Protection</label>
+     </div>
+
+     <div class="sub-options">
+    <input type="checkbox" id="check_hnoa" name="check_hnoa">
+    <label for="check_hnoa" class="check-label">Hired Non Owned Auto</label>
+</div>
+
+    <div class="sub-options">
+      <label for="al_schedule_mod">AL Schedule Rating Mod:</label>
+      <input type="number" id="al_schedule_mod" class="fee-input" value="1.00" step="0.01">
+    </div>
+
+    <div class="sub-options">
+      <label for="al_broker_fee">AL Broker Fee:</label>
+      <input type="number" id="al_broker_fee" class="fee-input" value="0.00" step="0.01">
+    </div>
+  </div>
+
+  
+  <div class="coverage-section">
+    <input type="checkbox" id="check_apd" name="check_apd">
+    <label for="check_al" class="check-label">Auto Physical Damage (work in progress) </label>
+     <div class="sub-options">
+        <input type="checkbox" id="check_apdtic" name="check_apdtic">
+        <label for="check_apdtic" class="check-label">APD Trailer Interchange</label>
+     </div>
+
+     <div class="sub-options">
+      <label for="ti_limit">APD Trailer Interchange Limit:</label>
+      <select id="ti_limit">
+        <option value="25000">$25,000</option>
+        <option value="50000">$50,000</option>
+        <option value="75000">$75,000</option>
+        <option value="100000">$100,000</option>
+      </select>
+    </div>
+
+      <div class="sub-options">
+        <input type="checkbox" id="check_tow" name="check_tow">
+        <label for="check_tow" class="check-label">Towing, Storage and Labor</label>
+     </div>
+
+          <div class="sub-options">
+      <label for="tow_limit">Towing, Storage, and Labor Limit:</label>
+      <select id="tow_limit">
+        <option value="2500">$2,500</option>
+        <option value="5000">$5,000</option>
+        <option value="7500">$7,500</option>
+        <option value="10000">$10,000</option>
+        <option value="15000">$15,000</option>
+        <option value="20000">$20,000</option>
+        <option value="25000">$25,000</option>
+      </select>
+    </div>
+
+    <div class="sub-options">
+      <label for="apd_schedule_rating">APD Schedule Rating Mod:</label>
+      <input type="number" id="apd_schedule_rating" class="fee-input" value="1.00" step="0.01">
+    </div>
+
+    <div class="sub-options">
+      <label for="apd_broker_fee">APD Broker Fee:</label>
+      <input type="number" id="apd_broker_fee" class="fee-input" value="0.00" step="0.01">
+    </div>
+  </div>
+
+  <div class="coverage-section">
+    <input type="checkbox" id="check_ntl" name="check_ntl">
+    <label for="check_ntl" class="check-label">Non-Trucking Liability</label>
+    <div class="sub-options">
+      <label for="ntl_broker_fee">NTL Broker Fee:</label>
+      <input type="number" id="ntl_broker_fee" class="fee-input" value="0.00" step="0.01">
+    </div>
+  </div>
+  
+  <div class="coverage-section">
+    <input type="checkbox" id="check_tgl" name="check_tgl">
+    <label for="check_tgl" class="check-label">Truckers General Liability</label>
+    <div class="sub-options">
+      <label for="tgl_broker_fee">TGL Broker Fee:</label>
+      <input type="number" id="tgl_broker_fee" class="fee-input" value="0.00" step="0.01">
+    </div>
+  </div>
+
+  <div class="coverage-section">
+    <input type="checkbox" id="check_mtc" name="check_mtc">
+    <label for="check_mtc" class="check-label">Motor Truck Cargo</label>
+    <div class="sub-options">
+      <label for="mtc_limit">MTC Limit:</label>
+      <select id="mtc_limit">
+        <option value="100000">$100,000</option>
+        <option value="125000">$125,000</option>
+        <option value="150000">$150,000</option>
+        <option value="175000">$175,000</option>
+        <option value="200000">$200,000</option>
+        <option value="250000">$250,000</option>
+      </select>
+    </div>
+    <div class="sub-options" style="margin-top: 10px;">
+      <input type="checkbox" id="mtc_reefer">
+      <label for="mtc_reefer" class="check-label">Refrigeration Exposure</label>
+    </div>
+    <div class="sub-options">
+      <label for="mtc_broker_fee">MTC Broker Fee:</label>
+      <input type="number" id="mtc_broker_fee" class="fee-input" value="0.00" step="0.01">
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #F0F0F0; margin: 20px 0;">
+
+    <input type="checkbox" id="check_ti" name="check_ti">
+    <label for="check_ti" class="check-label">Trailer Interchange (MTC)</label>
+    <div class="sub-options">
+      <label for="ti_limit">MTC Trailer Interchange Limit:</label>
+      <select id="ti_limit">
+        <option value="25000">$25,000</option>
+        <option value="50000">$50,000</option>
+        <option value="75000">$75,000</option>
+        <option value="100000">$100,000</option>
+      </select>
+    </div>
+    <div class="sub-options" style="margin-top: 10px;">
+      <input type="checkbox" id="ti_uiia">
+      <label for="ti_uiia" class="check-label">UIIA Exposure</label>
+    </div>
+  </div>
+
+  <button onclick="getRate()" style="margin-top: 20px;">Calculate Premium</button>
+
+  <h3 style="margin-bottom: 10px;">Calculated Premiums</h3>
+  <div id="result"></div>
+
+  <script>
+    function setToday() {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      document.getElementById('eff_date').value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    function toggleBipdDetails() {
+      const detailsDiv = document.getElementById('bipd_details');
+      if (detailsDiv.style.display === 'none') {
+        detailsDiv.style.display = 'block';
+      } else {
+        detailsDiv.style.display = 'none';
+      }
+    }
+
+    function toggleSsBipdDetails() {
+      const detailsDiv = document.getElementById('ss_bipd_details');
+      if (detailsDiv.style.display === 'none') {
+        detailsDiv.style.display = 'block';
+      } else {
+        detailsDiv.style.display = 'none';
+      }
+    }
+
+    function toggleUmbiDetails() {
+      const detailsDiv = document.getElementById('umbi_details');
+      if (detailsDiv.style.display === 'none') {
+        detailsDiv.style.display = 'block';
+      } else {
+        detailsDiv.style.display = 'none';
+      }
+    }
+
+   function toggleUmpdDetails() {
+  const detailsDiv = document.getElementById('umpd_details');
+  if (detailsDiv.style.display === 'none') {
+    detailsDiv.style.display = 'block';
+  } else {
+    detailsDiv.style.display = 'none';
+  }
+}
+
+function toggleUimbiDetails() {
+  const detailsDiv = document.getElementById('uimbi_details');
+  if (detailsDiv.style.display === 'none') {
+    detailsDiv.style.display = 'block';
+  } else {
+    detailsDiv.style.display = 'none';
+  }
+}
+
+function toggleUimpdDetails() {
+  const detailsDiv = document.getElementById('uimpd_details');
+  if (detailsDiv.style.display === 'none') {
+    detailsDiv.style.display = 'block';
+  } else {
+    detailsDiv.style.display = 'none';
+  }
+}
+
+function toggleMpDetails() {
+  const detailsDiv = document.getElementById('mp_details');
+  if (detailsDiv.style.display === 'none') {
+    detailsDiv.style.display = 'block';
+  } else {
+    detailsDiv.style.display = 'none';
+  }
+}
+
+function togglePipDetails() {
+  const detailsDiv = document.getElementById('pip_details');
+  if (detailsDiv.style.display === 'none') {
+    detailsDiv.style.display = 'block';
+  } else {
+    detailsDiv.style.display = 'none';
+  }
+}
+
+function toggleHnoaDetails() {
+  const detailsDiv = document.getElementById('hnoa_details');
+  if (detailsDiv.style.display === 'none') {
+    detailsDiv.style.display = 'block';
+  } else {
+    detailsDiv.style.display = 'none';
+  }
+}
+
+    async function lookupRatingPlan() {
+      const effDate = document.getElementById('eff_date').value;
+      const stateCode = document.getElementById('state_code').value;
+      const carrierName = document.getElementById('al_carrier').value;
+      const planDropdown = document.getElementById('carrier_plan');
+      
+      planDropdown.innerHTML = '<option value="">-- Select Rating Plan --</option>';
+      
+      if (!effDate || !stateCode || !carrierName) {
+        console.log('Missing required fields for rating plan lookup');
+        return;
+      }
+      
+      console.log('Looking up rating plan...', { effDate, stateCode, carrierName });
+      
+      try {
+        const response = await fetch('/lookup/rating_plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            effective_date: effDate,
+            state_code: stateCode,
+            carrier_name: carrierName
+          })
+        });
+        
+        if (!response.ok) throw new Error(`Rating plan lookup failed: ${response.statusText}`);
+        
+        const data = await response.json();
+        
+        if (data.plan_name) {
+          planDropdown.innerHTML = `
+            <option value="">-- Select Rating Plan --</option>
+            <option value="${data.plan_name}" selected>${data.plan_name}</option>
+          `;
+          console.log('Rating plan found:', data.plan_name);
+        } else {
+          planDropdown.innerHTML = '<option value="">No rating plan found</option>';
+          console.log('No rating plan found for criteria');
+        }
+      } catch (error) {
+        console.error('Rating plan lookup error:', error);
+        planDropdown.innerHTML = '<option value="">Error loading rating plan</option>';
+      }
+    }
+
+    async function handleZipInput(inputElement) {
+      const zipCode = inputElement.value;
+      const stateDropdown = document.getElementById('state_code'); 
+      if (zipCode.length === 5 && /^\d{5}$/.test(zipCode)) {
+        try {
+          const response = await fetch('/lookup/state_by_zip', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ "zip_code": zipCode }) 
+          });
+          if (!response.ok) throw new Error(`State lookup failed: ${response.statusText}`);
+          const data = await response.json();
+          stateDropdown.value = data.state || ''; 
+          lookupRatingPlan();
+        } catch (error) { 
+          console.error("Zip lookup error:", error); 
+          stateDropdown.value = ''; 
+        }
+      } else { 
+        stateDropdown.value = ''; 
+      }
+    }
+
+    const vehicleContainer = document.getElementById('vehicle_container');
+    const addVehicleBtn = document.getElementById('add_vehicle_btn');
+
+    function vehicleRowTemplate(index) {
+      const idPrefix = `veh_${index}`;
+      return `
+        <div class="vehicle-row" data-row-index="${index}">
+          <div>
+            <label for="${idPrefix}_year">Vehicle Year</label>
+            <input type="number" id="${idPrefix}_year" min="1990" step="1" placeholder="e.g., 2024">
+          </div>
+          <div>
+            <label for="${idPrefix}_class">Vehicle Class</label>
+            <select id="${idPrefix}_class">
+                <option value="Select Class">Select Class</option>
+                <option value="Class2">Class 2</option>
+                <option value="Class3">Class 3</option>
+                <option value="Class4">Class 4</option>
+                <option value="Class5">Class 5</option>
+                <option value="Class6">Class 6</option>
+                <option value="Class7">Class 7</option>
+                <option value="Class8">Class 8</option>
+                <option value="Trailer">Trailer</option>
+            </select>
+          </div>
+            <div>
+            <label for="${idPrefix}_body">Vehicle Body Type</label>
+            <select id="${idPrefix}_body">
+                <option value="Select Body Type">Select Body Type</option>
+                <option value="BOXTRUCK">BOXTRUCK</option>
+                <option value="CARGOVAN">CARGOVAN</option>
+                <option value="DUMPTRUCK">DUMPTRUCK</option>
+                <option value="FLATBEDTRUCK">FLATBEDTRUCK</option>
+                <option value="PICKUP">PICKUP</option>
+                <option value="STAKETRUCK">STAKETRUCK</option>
+                <option value="STEPVAN">STEPVAN</option>
+                <option value="STRAIGHTTRUCK">STRAIGHTTRUCK</option>
+                <option value="TRACTOR">TRACTOR</option>
+                <option value="AUTOTRANSPORTERTRAILER">AUTOTRANSPORTERTRAILER</option>
+                <option value="CURTAINVANTRAILER">CURTAINVANTRAILER</option>
+                <option value="DRYBULKTRAILER">DRYBULKTRAILER</option>
+                <option value="DRYVANTRAILER">DRYVANTRAILER</option>
+                <option value="DUMPTRAILER">DUMPTRAILER</option>
+                <option value="FLATBEDTRAILER">FLATBEDTRAILER</option>
+                <option value="GOOSENECKTRAILER">GOOSENECKTRAILER</option>
+                <option value="INTERMODALCONTAINERHAULERTRAILER">INTERMODALCONTAINERHAULERTRAILER</option>
+                <option value="LOWBOYTRAILER">LOWBOYTRAILER</option>
+                <option value="REFRIGERATIONTRAILER">REFRIGERATIONTRAILER</option>
+                <option value="STEPDECKTRAILER">STEPDECKTRAILER</option>
+                <option value="TILTDECKTRAILER">TILTDECKTRAILER</option>
+                <option value="UTILITYTRAILER">UTILITYTRAILER</option>
+               
+            </select>
+          </div>
+                 <div>
+            <label for="${idPrefix}_value">Vehicle Value</label>
+            <input type="number" id="${idPrefix}_value" min="0" step="1000" placeholder="e.g., 100000">
+          </div>
+          <div>
+            <label for="${idPrefix}_ded">Vehicle Deductible</label>
+            <select id="${idPrefix}_ded">
+              <option value="0">$0</option>
+              <option value="1000">$1,000</option>
+              <option value="2500">$2,500</option>
+              <option value="5000">$5,000</option>
+            </select>
+          </div>
+          <div>
+            <label for="${idPrefix}_apd">APD Coverage</label>
+            <select id="${idPrefix}_apd">
+              <option value="Include">Include</option>
+              <option value="Exclude">Exclude</option>
+            </select>
+          </div>
+          <div>
+            <div class="inline">
+              <input type="checkbox" class="veh_power" id="${idPrefix}_power">
+              <label for="${idPrefix}_power">Power Unit</label>
+            </div>
+            <div class="inline" style="margin-top: 8px;">
+              <input type="checkbox" class="veh_trailer" id="${idPrefix}_trailer">
+              <label for="${idPrefix}_trailer">Trailer</label>
+            </div>
+          </div>
+          <div>
+            <button type="button" class="remove-btn" onclick="removeVehicleRow(${index})">Remove</button>
+          </div>
+        </div>
+      `;
+    }
+
+    let vehicleRowCounter = 0;
+    function addVehicleRow() {
+      const html = vehicleRowTemplate(vehicleRowCounter++);
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = html.trim();
+      const rowEl = wrapper.firstElementChild;
+
+      rowEl.querySelector('.veh_power').addEventListener('change', updateVehicleCounts);
+      rowEl.querySelector('.veh_trailer').addEventListener('change', updateVehicleCounts);
+
+      vehicleContainer.appendChild(rowEl);
+      updateVehicleCounts();
+    }
+
+    function removeVehicleRow(index) {
+      const row = vehicleContainer.querySelector(`.vehicle-row[data-row-index="${index}"]`);
+      if (row) {
+        row.remove();
+        updateVehicleCounts();
+      }
+    }
+
+    function updateVehicleCounts() {
+      const powerChecks = vehicleContainer.querySelectorAll('.veh_power:checked');
+      const trailerChecks = vehicleContainer.querySelectorAll('.veh_trailer:checked');
+      document.getElementById('num_vehicles').value = powerChecks.length;
+      document.getElementById('num_trailers').value = trailerChecks.length;
+    }
+
+    addVehicleBtn.addEventListener('click', addVehicleRow);
+    addVehicleRow();
+
+    const driverContainer = document.getElementById('driver_container');
+    const addDriverBtn = document.getElementById('add_driver_btn');
+
+    function driverRowTemplate(index) {
+      const idPrefix = `drv_${index}`;
+      return `
+        <div class="driver-row" data-driver-index="${index}">
+          <div>
+            <label for="${idPrefix}_age">Driver Age</label>
+            <input type="number" id="${idPrefix}_age" min="18" max="99" step="1" placeholder="e.g., 35">
+          </div>
+          <div>
+            <label for="${idPrefix}_experience">Driver Experience (years)</label>
+            <input type="number" id="${idPrefix}_experience" min="0" max="50" step="1" placeholder="e.g., 10">
+          </div>
+          <div>
+            <label for="${idPrefix}_crashes">Number of Crashes</label>
+            <input type="number" id="${idPrefix}_crashes" min="0" max="99" step="1" placeholder="e.g., 0">
+          </div>
+          <div>
+            <label for="${idPrefix}_violations">Number of Violations</label>
+            <input type="number" id="${idPrefix}_violations" min="0" max="99" step="1" placeholder="e.g., 0">
+          </div>
+          <div>
+            <button type="button" class="remove-btn" onclick="removeDriverRow(${index})">Remove</button>
+          </div>
+        </div>
+      `;
+    }
+
+    let driverRowCounter = 0;
+    function addDriverRow() {
+      const html = driverRowTemplate(driverRowCounter++);
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = html.trim();
+      const rowEl = wrapper.firstElementChild;
+
+      driverContainer.appendChild(rowEl);
+      updateDriverCount();
+    }
+
+    function removeDriverRow(index) {
+      const row = driverContainer.querySelector(`.driver-row[data-driver-index="${index}"]`);
+      if (row) {
+        row.remove();
+        updateDriverCount();
+      }
+    }
+
+    function updateDriverCount() {
+      const driverRows = driverContainer.querySelectorAll('.driver-row');
+      document.getElementById('num_drivers').value = driverRows.length;
+    }
+
+    addDriverBtn.addEventListener('click', addDriverRow);
+    addDriverRow();
+
+    function buildTaxTable(taxData, includedCoverages) {
+      const byCode = {};
+      (taxData || []).forEach(r => { byCode[(r.coverage_type || '').toUpperCase()] = r; });
+
+      let html = `<table class="taxability">
+        <tr>
+          <th>Coverage Type</th>
+          <th style="text-align:center;">UW Fee Taxable</th>
+          <th style="text-align:center;">Broker Fee Taxable</th>
+          <th style="text-align:center;">Policy Fee Taxable</th>
+        </tr>`;
+
+      includedCoverages.forEach(code => {
+        const row = byCode[code];
+        const uw = row ? (row.uw_fee_taxability ? "✅" : "❌") : "—";
+        const br = row ? (row.broker_fee_taxability ? "✅" : "❌") : "—";
+        const pf = row ? (row.policy_fee_taxability ? "✅" : "❌") : "—";
+        html += `<tr>
+          <td>${code}</td>
+          <td style="text-align:center;">${uw}</td>
+          <td style="text-align:center;">${br}</td>
+          <td style="text-align:center;">${pf}</td>
+        </tr>`;
+      });
+
+      html += `</table>`;
+      return html;
+    }
+
+    async function getRate() {
+      let resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = 'Calculating…'; 
+
+      const policyDate = document.getElementById('eff_date').value;
+      const stateCode  = document.getElementById('state_code').value;
+      const zipCode = document.getElementById('zip_code').value;
+      const vehicleCount = parseFloat(document.getElementById('num_vehicles').value || 0);
+      const trailerCount = parseFloat(document.getElementById('num_trailers').value || 0);
+      
+      const include_al = document.getElementById('check_al').checked;
+      const al_carrier = document.getElementById('al_carrier').value;
+      const carrier_plan = document.getElementById('carrier_plan').value;
+      
+      const include_ntl = document.getElementById('check_ntl').checked;
+      const include_tgl = document.getElementById('check_tgl').checked;
+      const include_mtc = document.getElementById('check_mtc').checked;
+      const include_ti  = document.getElementById('check_ti').checked;
+      const include_tria = document.getElementById('check_tria').checked;
+
+      const ntl_broker_fee = parseFloat(document.getElementById('ntl_broker_fee').value || 0);
+      const tgl_broker_fee = parseFloat(document.getElementById('tgl_broker_fee').value || 0);
+      const mtc_broker_fee = parseFloat(document.getElementById('mtc_broker_fee').value || 0);
+
+      const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+      let premiumBoxesHtml = ''; 
+      let total_policy_premium = 0.0;
+      let total_policy_fees = 0.0; 
+
+      try {
+        if (include_al && carrier_plan === 'CW Plan') {
+          const radius0 = parseFloat(document.getElementById('radius0').value || 0);
+          const radius51 = parseFloat(document.getElementById('radius51').value || 0);
+          const radius201 = parseFloat(document.getElementById('radius201').value || 0);
+          const radius501 = parseFloat(document.getElementById('radius501').value || 0);
+          const radiusTotal = radius0 + radius51 + radius201 + radius501;
+          
+          if (radiusTotal !== 100) {
+            resultDiv.style.color = 'red';
+            resultDiv.innerHTML = `<div class="message error">Radius percentages must total 100%. Current total: ${radiusTotal}%</div>`;
+            return;
+          }
+        }
+        
+        if (include_al && carrier_plan === 'CW Plan') {
+          let bipdDetails = [];
+          let totalBipdPremium = 0.0;
+          
+          const businessUseType = document.getElementById('businessusetype').value;
+          const yearsInBusiness = parseInt(document.getElementById('yearsinbusiness').value || 0);
+          const oosViolations = parseInt(document.getElementById('oosviolations').value || 0);
+          const alLimit = parseInt(document.getElementById('al_limit').value || 1000000);
+          
+          const fleetResponse = await fetch('/rate/fleet_size_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              num_vehicles: vehicleCount
+            })
+          });
+          
+          if (!fleetResponse.ok) throw new Error('Fleet size factor lookup failed');
+          const fleetData = await fleetResponse.json();
+          const fleetFactor = parseFloat(fleetData.rate_factor || 1.0);
+          
+          const oosResponse = await fetch('/rate/oos_violations_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              usdot_violations: oosViolations
+            })
+          });
+          
+          if (!oosResponse.ok) throw new Error('OOS violations factor lookup failed');
+          const oosData = await oosResponse.json();
+          const oosFactor = parseFloat(oosData.rate_factor || 1.0);
+          
+          const ilfResponse = await fetch('/rate/ilf_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              al_limit: alLimit
+            })
+          });
+          
+          if (!ilfResponse.ok) throw new Error('ILF factor lookup failed');
+          const ilfData = await ilfResponse.json();
+          const ilfFactor = parseFloat(ilfData.ilf_factor || 1.0);
+          
+          const radius0 = parseFloat(document.getElementById('radius0').value || 0);
+          const radius51 = parseFloat(document.getElementById('radius51').value || 0);
+          const radius201 = parseFloat(document.getElementById('radius201').value || 0);
+          const radius501 = parseFloat(document.getElementById('radius501').value || 0);
+          
+          const radiusResponse = await fetch('/rate/radius_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              zip_code: zipCode,
+              radius_0_50: radius0,
+              radius_51_200: radius51,
+              radius_201_500: radius201,
+              radius_501_plus: radius501
+            })
+          });
+          
+          if (!radiusResponse.ok) throw new Error('Radius factor lookup failed');
+          const radiusData = await radiusResponse.json();
+          const radiusFactor = parseFloat(radiusData.weighted_factor || 1.0);
+          
+          console.log('DEBUG - Radius Factor:', radiusFactor);
+          
+          const driverRows = document.querySelectorAll('.driver-row');
+          let driverAgeFactors = [];
+          
+          for (const driverRow of driverRows) {
+            const ageInput = driverRow.querySelector('input[id$="_age"]');
+            const driverAge = parseInt(ageInput?.value || 0);
+            
+            if (driverAge > 0) {
+              try {
+                const driverAgeResponse = await fetch('/rate/driver_age_factor', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    driver_age: driverAge
+                  })
+                });
+                
+                if (!driverAgeResponse.ok) throw new Error('Driver age factor lookup failed');
+                const driverAgeData = await driverAgeResponse.json();
+                const ageFactor = parseFloat(driverAgeData.rate_factor || 1.0);
+                driverAgeFactors.push(ageFactor);
+                
+                console.log(`DEBUG - Driver Age ${driverAge}: Factor ${ageFactor}`);
+              } catch (error) {
+                console.error('Error fetching driver age factor:', error);
+                driverAgeFactors.push(1.0);
+              }
+            }
+          }
+          
+          const avgDriverAgeFactor = driverAgeFactors.length > 0 
+            ? driverAgeFactors.reduce((sum, f) => sum + f, 0) / driverAgeFactors.length 
+            : 1.0;
+          
+          console.log('DEBUG - Average Driver Age Factor:', avgDriverAgeFactor);
+          
+          let driverExpFactors = [];
+          
+          for (const driverRow of driverRows) {
+            const expInput = driverRow.querySelector('input[id$="_experience"]');
+            const driverExp = parseInt(expInput?.value || 0);
+            
+            if (driverExp >= 0) {
+              try {
+                const driverExpResponse = await fetch('/rate/driver_experience_factor', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    driver_experience: driverExp
+                  })
+                });
+                
+                if (!driverExpResponse.ok) throw new Error('Driver experience factor lookup failed');
+                const driverExpData = await driverExpResponse.json();
+                const expFactor = parseFloat(driverExpData.rate_factor || 1.0);
+                driverExpFactors.push(expFactor);
+                
+                console.log(`DEBUG - Driver Experience ${driverExp}: Factor ${expFactor}`);
+              } catch (error) {
+                console.error('Error fetching driver experience factor:', error);
+                driverExpFactors.push(1.0);
+              }
+            }
+          }
+          
+          const avgDriverExpFactor = driverExpFactors.length > 0 
+            ? driverExpFactors.reduce((sum, f) => sum + f, 0) / driverExpFactors.length 
+            : 1.0;
+          
+          console.log('DEBUG - Average Driver Experience Factor:', avgDriverExpFactor);
+          
+          let driverCrashesFactors = [];
+
+          for (const driverRow of driverRows) {
+            const crashesInput = driverRow.querySelector('input[id$="_crashes"]');
+            const driverCrashes = parseInt(crashesInput?.value || 0);
+            
+            if (driverCrashes >= 0) {
+              try {
+                const driverCrashesResponse = await fetch('/rate/driver_crashes_factor', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    accidents: driverCrashes
+                  })
+                });
+                
+                if (!driverCrashesResponse.ok) throw new Error('Driver crashes factor lookup failed');
+                const driverCrashesData = await driverCrashesResponse.json();
+                const crashesFactor = parseFloat(driverCrashesData.rate_factor || 1.0);
+                driverCrashesFactors.push(crashesFactor);
+                
+                console.log(`DEBUG - Driver Crashes ${driverCrashes}: Factor ${crashesFactor}`);
+              } catch (error) {
+                console.error('Error fetching driver crashes factor:', error);
+                driverCrashesFactors.push(1.0);
+              }
+            }
+          }
+
+          const avgDriverCrashesFactor = driverCrashesFactors.length > 0 
+            ? driverCrashesFactors.reduce((sum, f) => sum + f, 0) / driverCrashesFactors.length 
+            : 1.0;
+
+          console.log('DEBUG - Average Driver Crashes Factor:', avgDriverCrashesFactor);
+
+          let driverViolationsFactors = [];
+
+          for (const driverRow of driverRows) {
+            const violationsInput = driverRow.querySelector('input[id$="_violations"]');
+            const driverViolations = parseInt(violationsInput?.value || 0);
+            
+            if (driverViolations >= 0) {
+              try {
+                const driverViolationsResponse = await fetch('/rate/driver_violations_factor', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    violations: driverViolations
+                  })
+                });
+                
+                if (!driverViolationsResponse.ok) throw new Error('Driver violations factor lookup failed');
+                const driverViolationsData = await driverViolationsResponse.json();
+                const violationsFactor = parseFloat(driverViolationsData.rate_factor || 1.0);
+                driverViolationsFactors.push(violationsFactor);
+                
+                console.log(`DEBUG - Driver Violations ${driverViolations}: Factor ${violationsFactor}`);
+              } catch (error) {
+                console.error('Error fetching driver violations factor:', error);
+                driverViolationsFactors.push(1.0);
+              }
+            }
+          }
+
+          const avgDriverViolationsFactor = driverViolationsFactors.length > 0 
+            ? driverViolationsFactors.reduce((sum, f) => sum + f, 0) / driverViolationsFactors.length 
+            : 1.0;
+
+          console.log('DEBUG - Average Driver Violations Factor:', avgDriverViolationsFactor);
+          
+          const alClaimsYear1 = parseInt(document.getElementById('alclaimsyear1').value || 0);
+          const alClaimsYear2 = parseInt(document.getElementById('alclaimsyear2').value || 0);
+          const alClaimsYear3 = parseInt(document.getElementById('alclaimsyear3').value || 0);
+          const totalAlClaims = alClaimsYear1 + alClaimsYear2 + alClaimsYear3;
+
+          console.log(`DEBUG - Total AL Claims: ${totalAlClaims} (Year1: ${alClaimsYear1}, Year2: ${alClaimsYear2}, Year3: ${alClaimsYear3})`);
+
+          const lossHistoryResponse = await fetch('/rate/loss_history_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              total_claims: totalAlClaims,
+              num_vehicles: vehicleCount
+            })
+          });
+
+          if (!lossHistoryResponse.ok) throw new Error('Loss history factor lookup failed');
+          const lossHistoryData = await lossHistoryResponse.json();
+          const lossHistoryFactor = parseFloat(lossHistoryData.loss_history_factor || 1.0);
+
+          console.log('DEBUG - Loss History Factor:', lossHistoryFactor);
+
+          const alScheduleMod = parseFloat(document.getElementById('al_schedule_mod').value || 1.0);
+          console.log('DEBUG - AL Schedule Rating Mod:', alScheduleMod);
+          
+          const vehicleRows = document.querySelectorAll('.vehicle-row');
+          let vehicleNum = 1;
+          
+          for (const row of vehicleRows) {
+            const isPowerUnit = row.querySelector('.veh_power').checked;
+            
+            if (isPowerUnit) {
+              try {
+                const vehicleClassSelect = row.querySelector('select[id$="_class"]');
+                const vehicleClass = vehicleClassSelect.value;
+                
+                const bipdResponse = await fetch('/rate/bipd', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    state_code: stateCode
+                  })
+                });
+                
+                if (!bipdResponse.ok) throw new Error('BIPD rate lookup failed');
+                const bipdData = await bipdResponse.json();
+                const baseRate = parseFloat(bipdData.base_rate || 0);
+                
+                const weightResponse = await fetch('/rate/weight_class_factor', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    business_use_type: businessUseType,
+                    vehicle_class: vehicleClass
+                  })
+                });
+                
+                if (!weightResponse.ok) throw new Error('Weight class factor lookup failed');
+                const weightData = await weightResponse.json();
+                const weightFactor = parseFloat(weightData.rate_factor || 1.0);
+                
+                const yearsResponse = await fetch('/rate/years_in_business_factor', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    years_in_business: yearsInBusiness
+                  })
+                });
+                
+                if (!yearsResponse.ok) throw new Error('Years in business factor lookup failed');
+                const yearsData = await yearsResponse.json();
+                const yearsFactor = parseFloat(yearsData.rate_factor || 1.0);
+                
+                const vehiclePremium = Math.round((baseRate * weightFactor * yearsFactor * fleetFactor * oosFactor * ilfFactor * radiusFactor * avgDriverAgeFactor * avgDriverExpFactor * avgDriverCrashesFactor * avgDriverViolationsFactor * lossHistoryFactor * alScheduleMod) * 100) / 100;
+                
+                const minimumPremiumResponse = await fetch('/rate/minimum_premium', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    vehicle_class: vehicleClass,
+                    al_limit: alLimit,
+                    radius_percentages: {
+                      "0-50": radius0 / 100.0,
+                      "51-200": radius51 / 100.0,
+                      "201-500": radius201 / 100.0,
+                      "501+": radius501 / 100.0
+                    },
+                    schedule_mod: alScheduleMod
+                  })
+                });
+
+                if (!minimumPremiumResponse.ok) throw new Error('Minimum premium lookup failed');
+                const minimumPremiumData = await minimumPremiumResponse.json();
+                const minimumPremium = parseFloat(minimumPremiumData.minimum_premium || 0);
+
+                console.log(`Vehicle ${vehicleNum} - Calculated: ${vehiclePremium}, Minimum: ${minimumPremium}`);
+
+                const finalVehiclePremium = Math.max(vehiclePremium, minimumPremium);
+
+                console.log(`Vehicle ${vehicleNum} - Final Premium: ${finalVehiclePremium}`);
+                
+                console.log(`Vehicle ${vehicleNum} Premium Calculation:`, {
+                  baseRate, weightFactor, yearsFactor, fleetFactor, oosFactor, ilfFactor, radiusFactor, avgDriverAgeFactor, avgDriverExpFactor, avgDriverCrashesFactor, avgDriverViolationsFactor, lossHistoryFactor, alScheduleMod, vehiclePremium, minimumPremium, finalVehiclePremium
+                });
+                
+                bipdDetails.push({
+                  vehicleNum: vehicleNum,
+                  baseRate: baseRate,
+                  weightFactor: weightFactor,
+                  yearsFactor: yearsFactor,
+                  fleetFactor: fleetFactor,
+                  oosFactor: oosFactor,
+                  ilfFactor: ilfFactor,
+                  radiusFactor: radiusFactor,
+                  driverAgeFactor: avgDriverAgeFactor,
+                  driverExpFactor: avgDriverExpFactor,
+                  driverCrashesFactor: avgDriverCrashesFactor,
+                  driverViolationsFactor: avgDriverViolationsFactor,
+                  lossHistoryFactor: lossHistoryFactor,
+                  scheduleModFactor: alScheduleMod,
+                  calculatedPremium: vehiclePremium,
+                  minimumPremium: minimumPremium,
+                  premium: finalVehiclePremium
+                });
+                
+                totalBipdPremium += finalVehiclePremium;
+                vehicleNum++;
+              } catch (error) {
+                console.error('Error fetching BIPD rate:', error);
+              }
+            }
+          }
+          
+          if (totalBipdPremium > 0) {
+            total_policy_premium += totalBipdPremium;
+            
+            let bipdBoxContent = `<strong>Auto Liability - BIPD Premium: ${formatter.format(totalBipdPremium)}</strong>`;
+            bipdBoxContent += `<div style="margin-top: 10px;">`;
+            bipdBoxContent += `<a href="#" onclick="toggleBipdDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+            bipdBoxContent += `</div>`;
+            bipdBoxContent += `<div id="bipd_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+            bipdBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.8em;">`;
+            
+            bipdDetails.forEach(vehicle => {
+              bipdBoxContent += `<tr style="border-bottom: 1px solid #ddd; background-color: #f9f9f9;">`;
+              bipdBoxContent += `<th style="text-align: left; padding: 5px;">Veh</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">Base</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">Wgt</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">Yrs</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">Flt</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">OOS</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">ILF</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">Rad</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">DrvAge</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">DrvExp</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">DrvCrash</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">DrvViol</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">LossHist</th>`;
+              bipdBoxContent += `</tr>`;
+              
+              bipdBoxContent += `<tr style="border-bottom: 1px solid #ccc;">`;
+              bipdBoxContent += `<td style="padding: 5px;">V${vehicle.vehicleNum}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${formatter.format(vehicle.baseRate)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.weightFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.yearsFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.fleetFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.oosFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.ilfFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.radiusFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.driverAgeFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.driverExpFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.driverCrashesFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.driverViolationsFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.lossHistoryFactor.toFixed(4)}</td>`;
+              bipdBoxContent += `</tr>`;
+              
+              bipdBoxContent += `<tr style="border-bottom: 1px solid #ddd; background-color: #f0f0f0;">`;
+              bipdBoxContent += `<th style="text-align: left; padding: 5px;">Veh</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">Mod</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">Calc</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">Min</th>`;
+              bipdBoxContent += `<th style="text-align: right; padding: 5px;">Premium</th>`;
+              bipdBoxContent += `</tr>`;
+              
+              bipdBoxContent += `<tr style="border-bottom: 2px solid #999; margin-bottom: 10px;">`;
+              bipdBoxContent += `<td style="padding: 5px;">V${vehicle.vehicleNum}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.scheduleModFactor.toFixed(2)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${formatter.format(vehicle.calculatedPremium)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px;">${formatter.format(vehicle.minimumPremium)}</td>`;
+              bipdBoxContent += `<td style="text-align: right; padding: 5px; font-weight: bold;">${formatter.format(vehicle.premium)}</td>`;
+              bipdBoxContent += `</tr>`;
+            });
+            
+            bipdBoxContent += `</table></div>`;
+            premiumBoxesHtml += `<div class="result-premium-box">${bipdBoxContent}</div>`;
+          }
+          
+          // --- UMBI Calculation ---
+          let totalUmbiPremium = 0.0;
+          const include_um = document.getElementById('check_um').checked;
+
+          if (include_um) {
+            const umbiResponse = await fetch('/rate/umbi', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                effective_date: policyDate,
+                state_code: stateCode
+              })
+            });
+            
+            if (!umbiResponse.ok) throw new Error('UMBI rate lookup failed');
+            const umbiData = await umbiResponse.json();
+            const umbiRate = parseFloat(umbiData.rate || 0);
+            
+            console.log('DEBUG - UMBI Rate:', umbiRate);
+            
+            let umbiDetails = [];
+            const vehicleRowsUmbi = document.querySelectorAll('.vehicle-row');
+            let vehicleNumUmbi = 1;
+            
+            for (const row of vehicleRowsUmbi) {
+              const isPowerUnit = row.querySelector('.veh_power').checked;
+              
+              if (isPowerUnit) {
+                umbiDetails.push({
+                  vehicleNum: vehicleNumUmbi,
+                  rate: umbiRate,
+                  premium: umbiRate
+                });
+                
+                totalUmbiPremium += umbiRate;
+                vehicleNumUmbi++;
+              }
+            }
+            
+            if (totalUmbiPremium > 0) {
+              total_policy_premium += totalUmbiPremium;
+              
+              let umbiBoxContent = `<strong>Uninsured Motorists BI Premium: ${formatter.format(totalUmbiPremium)}</strong>`;
+              umbiBoxContent += `<div style="margin-top: 10px;">`;
+              umbiBoxContent += `<a href="#" onclick="toggleUmbiDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+              umbiBoxContent += `</div>`;
+              umbiBoxContent += `<div id="umbi_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+              umbiBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">`;
+              umbiBoxContent += `<tr style="border-bottom: 2px solid #ddd; background-color: #f0f0f0;">`;
+              umbiBoxContent += `<th style="text-align: left; padding: 8px;">Vehicle</th>`;
+              umbiBoxContent += `<th style="text-align: right; padding: 8px;">UMBI Rate</th>`;
+              umbiBoxContent += `<th style="text-align: right; padding: 8px;">Premium</th>`;
+              umbiBoxContent += `</tr>`;
+              
+              umbiDetails.forEach(vehicle => {
+                umbiBoxContent += `<tr style="border-bottom: 1px solid #eee;">`;
+                umbiBoxContent += `<td style="padding: 8px;">Vehicle ${vehicle.vehicleNum}</td>`;
+                umbiBoxContent += `<td style="text-align: right; padding: 8px;">${formatter.format(vehicle.rate)}</td>`;
+                umbiBoxContent += `<td style="text-align: right; padding: 8px; font-weight: bold;">${formatter.format(vehicle.premium)}</td>`;
+                umbiBoxContent += `</tr>`;
+              });
+              
+              umbiBoxContent += `</table></div>`;
+              premiumBoxesHtml += `<div class="result-premium-box">${umbiBoxContent}</div>`;
+            }
+          }
+
+          // --- UMPD Calculation ---
+            let totalUmpdPremium = 0.0;
+            // UMPD rates when Uninsured Motorists checkbox is checked (same as UMBI)
+            if (include_um) {
+              const umpdResponse = await fetch('/rate/umpd', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  effective_date: policyDate,
+                  state_code: stateCode
+                })
+              });
+              
+              if (!umpdResponse.ok) throw new Error('UMPD rate lookup failed');
+              const umpdData = await umpdResponse.json();
+              const umpdRate = parseFloat(umpdData.rate || 0);
+              
+              console.log('DEBUG - UMPD Rate:', umpdRate);
+              
+              let umpdDetails = [];
+              const vehicleRowsUmpd = document.querySelectorAll('.vehicle-row');
+              let vehicleNumUmpd = 1;
+              
+              for (const row of vehicleRowsUmpd) {
+                const isPowerUnit = row.querySelector('.veh_power').checked;
+                
+                if (isPowerUnit) {
+                  umpdDetails.push({
+                    vehicleNum: vehicleNumUmpd,
+                    rate: umpdRate,
+                    premium: umpdRate
+                  });
+                  
+                  totalUmpdPremium += umpdRate;
+                  vehicleNumUmpd++;
+                }
+              }
+              
+              if (totalUmpdPremium > 0) {
+                total_policy_premium += totalUmpdPremium;
+                
+                let umpdBoxContent = `<strong>Uninsured Motorists PD Premium: ${formatter.format(totalUmpdPremium)}</strong>`;
+                umpdBoxContent += `<div style="margin-top: 10px;">`;
+                umpdBoxContent += `<a href="#" onclick="toggleUmpdDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+                umpdBoxContent += `</div>`;
+                umpdBoxContent += `<div id="umpd_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+                umpdBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">`;
+                umpdBoxContent += `<tr style="border-bottom: 2px solid #ddd; background-color: #f0f0f0;">`;
+                umpdBoxContent += `<th style="text-align: left; padding: 8px;">Vehicle</th>`;
+                umpdBoxContent += `<th style="text-align: right; padding: 8px;">UMPD Rate</th>`;
+                umpdBoxContent += `<th style="text-align: right; padding: 8px;">Premium</th>`;
+                umpdBoxContent += `</tr>`;
+                
+                umpdDetails.forEach(vehicle => {
+                  umpdBoxContent += `<tr style="border-bottom: 1px solid #eee;">`;
+                  umpdBoxContent += `<td style="padding: 8px;">Vehicle ${vehicle.vehicleNum}</td>`;
+                  umpdBoxContent += `<td style="text-align: right; padding: 8px;">${formatter.format(vehicle.rate)}</td>`;
+                  umpdBoxContent += `<td style="text-align: right; padding: 8px; font-weight: bold;">${formatter.format(vehicle.premium)}</td>`;
+                  umpdBoxContent += `</tr>`;
+                });
+                
+                umpdBoxContent += `</table></div>`;
+                premiumBoxesHtml += `<div class="result-premium-box">${umpdBoxContent}</div>`;
+              }
+          } 
+          
+          // --- UIMBI Calculation ---
+                  let totalUimbiPremium = 0.0;
+                  const include_uim = document.getElementById('check_uim').checked;
+
+                  if (include_uim) {
+                    const uimbiResponse = await fetch('/rate/uimbi', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        effective_date: policyDate,
+                        state_code: stateCode
+                      })
+                    });
+                    
+                    if (!uimbiResponse.ok) throw new Error('UIMBI rate lookup failed');
+                    const uimbiData = await uimbiResponse.json();
+                    const uimbiRate = parseFloat(uimbiData.rate || 0);
+                    
+                    console.log('DEBUG - UIMBI Rate:', uimbiRate);
+                    
+                    let uimbiDetails = [];
+                    const vehicleRowsUimbi = document.querySelectorAll('.vehicle-row');
+                    let vehicleNumUimbi = 1;
+                    
+                    for (const row of vehicleRowsUimbi) {
+                      const isPowerUnit = row.querySelector('.veh_power').checked;
+                      
+                      if (isPowerUnit) {
+                        uimbiDetails.push({
+                          vehicleNum: vehicleNumUimbi,
+                          rate: uimbiRate,
+                          premium: uimbiRate
+                        });
+                        
+                        totalUimbiPremium += uimbiRate;
+                        vehicleNumUimbi++;
+                      }
+                    }
+                    
+                    if (totalUimbiPremium > 0) {
+                      total_policy_premium += totalUimbiPremium;
+                      
+                      let uimbiBoxContent = `<strong>Underinsured Motorists BI Premium: ${formatter.format(totalUimbiPremium)}</strong>`;
+                      uimbiBoxContent += `<div style="margin-top: 10px;">`;
+                      uimbiBoxContent += `<a href="#" onclick="toggleUimbiDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+                      uimbiBoxContent += `</div>`;
+                      uimbiBoxContent += `<div id="uimbi_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+                      uimbiBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">`;
+                      uimbiBoxContent += `<tr style="border-bottom: 2px solid #ddd; background-color: #f0f0f0;">`;
+                      uimbiBoxContent += `<th style="text-align: left; padding: 8px;">Vehicle</th>`;
+                      uimbiBoxContent += `<th style="text-align: right; padding: 8px;">UIMBI Rate</th>`;
+                      uimbiBoxContent += `<th style="text-align: right; padding: 8px;">Premium</th>`;
+                      uimbiBoxContent += `</tr>`;
+                      
+                      uimbiDetails.forEach(vehicle => {
+                        uimbiBoxContent += `<tr style="border-bottom: 1px solid #eee;">`;
+                        uimbiBoxContent += `<td style="padding: 8px;">Vehicle ${vehicle.vehicleNum}</td>`;
+                        uimbiBoxContent += `<td style="text-align: right; padding: 8px;">${formatter.format(vehicle.rate)}</td>`;
+                        uimbiBoxContent += `<td style="text-align: right; padding: 8px; font-weight: bold;">${formatter.format(vehicle.premium)}</td>`;
+                        uimbiBoxContent += `</tr>`;
+                      });
+                      
+                      uimbiBoxContent += `</table></div>`;
+                      premiumBoxesHtml += `<div class="result-premium-box">${uimbiBoxContent}</div>`;
+                    }
+                  }
+
+                  // --- UIMPD Calculation ---
+                      let totalUimpdPremium = 0.0;
+                      // UIMPD rates when Underinsured Motorists checkbox is checked (same as UIMBI)
+                      if (include_uim) {
+                        const uimpdResponse = await fetch('/rate/uimpd', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            effective_date: policyDate,
+                            state_code: stateCode
+                          })
+                        });
+                        
+                        if (!uimpdResponse.ok) throw new Error('UIMPD rate lookup failed');
+                        const uimpdData = await uimpdResponse.json();
+                        const uimpdRate = parseFloat(uimpdData.rate || 0);
+                        
+                        console.log('DEBUG - UIMPD Rate:', uimpdRate);
+                        
+                        let uimpdDetails = [];
+                        const vehicleRowsUimpd = document.querySelectorAll('.vehicle-row');
+                        let vehicleNumUimpd = 1;
+                        
+                        for (const row of vehicleRowsUimpd) {
+                          const isPowerUnit = row.querySelector('.veh_power').checked;
+                          
+                          if (isPowerUnit) {
+                            uimpdDetails.push({
+                              vehicleNum: vehicleNumUimpd,
+                              rate: uimpdRate,
+                              premium: uimpdRate
+                            });
+                            
+                            totalUimpdPremium += uimpdRate;
+                            vehicleNumUimpd++;
+                          }
+                        }
+                        
+                        if (totalUimpdPremium > 0) {
+                          total_policy_premium += totalUimpdPremium;
+                          
+                          let uimpdBoxContent = `<strong>Underinsured Motorists PD Premium: ${formatter.format(totalUimpdPremium)}</strong>`;
+                          uimpdBoxContent += `<div style="margin-top: 10px;">`;
+                          uimpdBoxContent += `<a href="#" onclick="toggleUimpdDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+                          uimpdBoxContent += `</div>`;
+                          uimpdBoxContent += `<div id="uimpd_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+                          uimpdBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">`;
+                          uimpdBoxContent += `<tr style="border-bottom: 2px solid #ddd; background-color: #f0f0f0;">`;
+                          uimpdBoxContent += `<th style="text-align: left; padding: 8px;">Vehicle</th>`;
+                          uimpdBoxContent += `<th style="text-align: right; padding: 8px;">UIMPD Rate</th>`;
+                          uimpdBoxContent += `<th style="text-align: right; padding: 8px;">Premium</th>`;
+                          uimpdBoxContent += `</tr>`;
+                          
+                          uimpdDetails.forEach(vehicle => {
+                            uimpdBoxContent += `<tr style="border-bottom: 1px solid #eee;">`;
+                            uimpdBoxContent += `<td style="padding: 8px;">Vehicle ${vehicle.vehicleNum}</td>`;
+                            uimpdBoxContent += `<td style="text-align: right; padding: 8px;">${formatter.format(vehicle.rate)}</td>`;
+                            uimpdBoxContent += `<td style="text-align: right; padding: 8px; font-weight: bold;">${formatter.format(vehicle.premium)}</td>`;
+                            uimpdBoxContent += `</tr>`;
+                          });
+                          
+                          uimpdBoxContent += `</table></div>`;
+                          premiumBoxesHtml += `<div class="result-premium-box">${uimpdBoxContent}</div>`;
+                        }
+                      }
+
+                      // --- Medical Payments Calculation ---
+                          let totalMedicalPaymentsPremium = 0.0;
+                          const include_mp = document.getElementById('check_mp').checked;
+
+                          if (include_mp) {
+                            const mpResponse = await fetch('/rate/medical_payments', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                effective_date: policyDate,
+                                state_code: stateCode
+                              })
+                            });
+                            
+                            if (!mpResponse.ok) throw new Error('Medical Payments rate lookup failed');
+                            const mpData = await mpResponse.json();
+                            const mpRate = parseFloat(mpData.rate || 0);
+                            
+                            console.log('DEBUG - Medical Payments Rate:', mpRate);
+                            
+                            let mpDetails = [];
+                            const vehicleRowsMp = document.querySelectorAll('.vehicle-row');
+                            let vehicleNumMp = 1;
+                            
+                            for (const row of vehicleRowsMp) {
+                              const isPowerUnit = row.querySelector('.veh_power').checked;
+                              
+                              if (isPowerUnit) {
+                                mpDetails.push({
+                                  vehicleNum: vehicleNumMp,
+                                  rate: mpRate,
+                                  premium: mpRate
+                                });
+                                
+                                totalMedicalPaymentsPremium += mpRate;
+                                vehicleNumMp++;
+                              }
+                            }
+                            
+                            if (totalMedicalPaymentsPremium > 0) {
+                              total_policy_premium += totalMedicalPaymentsPremium;
+                              
+                              let mpBoxContent = `<strong>Medical Payments Premium: ${formatter.format(totalMedicalPaymentsPremium)}</strong>`;
+                              mpBoxContent += `<div style="margin-top: 10px;">`;
+                              mpBoxContent += `<a href="#" onclick="toggleMpDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+                              mpBoxContent += `</div>`;
+                              mpBoxContent += `<div id="mp_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+                              mpBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">`;
+                              mpBoxContent += `<tr style="border-bottom: 2px solid #ddd; background-color: #f0f0f0;">`;
+                              mpBoxContent += `<th style="text-align: left; padding: 8px;">Vehicle</th>`;
+                              mpBoxContent += `<th style="text-align: right; padding: 8px;">MP Rate</th>`;
+                              mpBoxContent += `<th style="text-align: right; padding: 8px;">Premium</th>`;
+                              mpBoxContent += `</tr>`;
+                              
+                              mpDetails.forEach(vehicle => {
+                                mpBoxContent += `<tr style="border-bottom: 1px solid #eee;">`;
+                                mpBoxContent += `<td style="padding: 8px;">Vehicle ${vehicle.vehicleNum}</td>`;
+                                mpBoxContent += `<td style="text-align: right; padding: 8px;">${formatter.format(vehicle.rate)}</td>`;
+                                mpBoxContent += `<td style="text-align: right; padding: 8px; font-weight: bold;">${formatter.format(vehicle.premium)}</td>`;
+                                mpBoxContent += `</tr>`;
+                              });
+                              
+                              mpBoxContent += `</table></div>`;
+                              premiumBoxesHtml += `<div class="result-premium-box">${mpBoxContent}</div>`;
+                            }
+                          }
+
+                      // --- PIP Calculation ---
+                            let totalPipPremium = 0.0;
+                            const include_pip = document.getElementById('check_pip').checked;
+
+                            if (include_pip) {
+                              const pipResponse = await fetch('/rate/pip', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  effective_date: policyDate,
+                                  state_code: stateCode
+                                })
+                              });
+                              
+                              if (!pipResponse.ok) throw new Error('PIP rate lookup failed');
+                              const pipData = await pipResponse.json();
+                              const pipRate = parseFloat(pipData.rate || 0);
+                              
+                              console.log('DEBUG - PIP Rate:', pipRate);
+                              
+                              let pipDetails = [];
+                              const vehicleRowsPip = document.querySelectorAll('.vehicle-row');
+                              let vehicleNumPip = 1;
+                              
+                              for (const row of vehicleRowsPip) {
+                                const isPowerUnit = row.querySelector('.veh_power').checked;
+                                
+                                if (isPowerUnit) {
+                                  pipDetails.push({
+                                    vehicleNum: vehicleNumPip,
+                                    rate: pipRate,
+                                    premium: pipRate
+                                  });
+                                  
+                                  totalPipPremium += pipRate;
+                                  vehicleNumPip++;
+                                }
+                              }
+                              
+                              if (totalPipPremium > 0) {
+                                total_policy_premium += totalPipPremium;
+                                
+                                let pipBoxContent = `<strong>Personal Injury Protection Premium: ${formatter.format(totalPipPremium)}</strong>`;
+                                pipBoxContent += `<div style="margin-top: 10px;">`;
+                                pipBoxContent += `<a href="#" onclick="togglePipDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+                                pipBoxContent += `</div>`;
+                                pipBoxContent += `<div id="pip_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+                                pipBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">`;
+                                pipBoxContent += `<tr style="border-bottom: 2px solid #ddd; background-color: #f0f0f0;">`;
+                                pipBoxContent += `<th style="text-align: left; padding: 8px;">Vehicle</th>`;
+                                pipBoxContent += `<th style="text-align: right; padding: 8px;">PIP Rate</th>`;
+                                pipBoxContent += `<th style="text-align: right; padding: 8px;">Premium</th>`;
+                                pipBoxContent += `</tr>`;
+                                
+                                pipDetails.forEach(vehicle => {
+                                  pipBoxContent += `<tr style="border-bottom: 1px solid #eee;">`;
+                                  pipBoxContent += `<td style="padding: 8px;">Vehicle ${vehicle.vehicleNum}</td>`;
+                                  pipBoxContent += `<td style="text-align: right; padding: 8px;">${formatter.format(vehicle.rate)}</td>`;
+                                  pipBoxContent += `<td style="text-align: right; padding: 8px; font-weight: bold;">${formatter.format(vehicle.premium)}</td>`;
+                                  pipBoxContent += `</tr>`;
+                                });
+                                
+                                pipBoxContent += `</table></div>`;
+                                premiumBoxesHtml += `<div class="result-premium-box">${pipBoxContent}</div>`;
+                              }
+                            }
+
+                          // --- HNOA Calculation ---
+                          let totalHnoaPremium = 0.0;
+                          const include_hnoa = document.getElementById('check_hnoa').checked;
+
+                          if (include_hnoa) {
+                            const hnoaResponse = await fetch('/rate/hnoa', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                effective_date: policyDate,
+                                state_code: stateCode
+                              })
+                            });
+                            
+                            if (!hnoaResponse.ok) throw new Error('HNOA rate lookup failed');
+                            const hnoaData = await hnoaResponse.json();
+                            const hnoaRate = parseFloat(hnoaData.rate || 0);
+                            
+                            console.log('DEBUG - HNOA Rate:', hnoaRate);
+                            
+                            let hnoaDetails = [];
+                            const vehicleRowsHnoa = document.querySelectorAll('.vehicle-row');
+                            let vehicleNumHnoa = 1;
+                            
+                            for (const row of vehicleRowsHnoa) {
+                              const isPowerUnit = row.querySelector('.veh_power').checked;
+                              
+                              if (isPowerUnit) {
+                                hnoaDetails.push({
+                                  vehicleNum: vehicleNumHnoa,
+                                  rate: hnoaRate,
+                                  premium: hnoaRate
+                                });
+                                
+                                totalHnoaPremium += hnoaRate;
+                                vehicleNumHnoa++;
+                              }
+                            }
+                            
+                            if (totalHnoaPremium > 0) {
+                              total_policy_premium += totalHnoaPremium;
+                              
+                              let hnoaBoxContent = `<strong>Hired Non Owned Auto Premium: ${formatter.format(totalHnoaPremium)}</strong>`;
+                              hnoaBoxContent += `<div style="margin-top: 10px;">`;
+                              hnoaBoxContent += `<a href="#" onclick="toggleHnoaDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+                              hnoaBoxContent += `</div>`;
+                              hnoaBoxContent += `<div id="hnoa_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+                              hnoaBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">`;
+                              hnoaBoxContent += `<tr style="border-bottom: 2px solid #ddd; background-color: #f0f0f0;">`;
+                              hnoaBoxContent += `<th style="text-align: left; padding: 8px;">Vehicle</th>`;
+                              hnoaBoxContent += `<th style="text-align: right; padding: 8px;">HNOA Rate</th>`;
+                              hnoaBoxContent += `<th style="text-align: right; padding: 8px;">Premium</th>`;
+                              hnoaBoxContent += `</tr>`;
+                              
+                              hnoaDetails.forEach(vehicle => {
+                                hnoaBoxContent += `<tr style="border-bottom: 1px solid #eee;">`;
+                                hnoaBoxContent += `<td style="padding: 8px;">Vehicle ${vehicle.vehicleNum}</td>`;
+                                hnoaBoxContent += `<td style="text-align: right; padding: 8px;">${formatter.format(vehicle.rate)}</td>`;
+                                hnoaBoxContent += `<td style="text-align: right; padding: 8px; font-weight: bold;">${formatter.format(vehicle.premium)}</td>`;
+                                hnoaBoxContent += `</tr>`;
+                              });
+                              
+                              hnoaBoxContent += `</table></div>`;
+                              premiumBoxesHtml += `<div class="result-premium-box">${hnoaBoxContent}</div>`;
+                            }
+                          }
+
+                           // --- Total Auto Liability Summary ---
+                          const totalAlPremium = totalBipdPremium + totalUmbiPremium + totalUmpdPremium + totalUimbiPremium + totalUimpdPremium + totalMedicalPaymentsPremium + totalPipPremium + totalHnoaPremium;
+                          
+                          if (totalAlPremium > 0) {
+                            total_policy_premium += 0; // AL premium already added to total via individual coverages
+                            
+                            let alSummaryContent = `<strong style="font-size: 1.1em;">Total Auto Liability Premium: ${formatter.format(totalAlPremium)}</strong>`;
+                            alSummaryContent += `<div style="margin-top: 10px; padding-left: 15px; font-size: 0.95em; color: #555;">`;
+                            if (totalBipdPremium > 0) alSummaryContent += `BIPD: ${formatter.format(totalBipdPremium)}<br>`;
+                            if (totalUmbiPremium > 0) alSummaryContent += `UMBI: ${formatter.format(totalUmbiPremium)}<br>`;
+                            if (totalUmpdPremium > 0) alSummaryContent += `UMPD: ${formatter.format(totalUmpdPremium)}<br>`;
+                            if (totalUimbiPremium > 0) alSummaryContent += `UIMBI: ${formatter.format(totalUimbiPremium)}<br>`;
+                            if (totalUimpdPremium > 0) alSummaryContent += `UIMPD: ${formatter.format(totalUimpdPremium)}<br>`;
+                            if (totalMedicalPaymentsPremium > 0) alSummaryContent += `Medical Payments: ${formatter.format(totalMedicalPaymentsPremium)}<br>`;
+                            if (totalPipPremium > 0) alSummaryContent += `PIP: ${formatter.format(totalPipPremium)}<br>`;
+                            if (totalHnoaPremium > 0) alSummaryContent += `HNOA: ${formatter.format(totalHnoaPremium)}<br>`;
+                            alSummaryContent += `</div>`;
+                            premiumBoxesHtml += `<div class="result-premium-box" style="background-color: #f0f4ff; border: 2px solid #6B4C9A;">${alSummaryContent}</div>`;
+                          }
+        }
+        
+        // --- NON ADMITTED (SS) BIPD RATING ---
+        if (include_al && carrier_plan === 'Non Admitted') {
+          let ssBipdDetails = [];
+          let totalSsBipdPremium = 0.0;
+          
+          const businessUseType = document.getElementById('businessusetype').value;
+          const yearsInBusiness = parseInt(document.getElementById('yearsinbusiness').value || 0);
+          const oosViolations = parseInt(document.getElementById('oosviolations').value || 0);
+          const alLimit = parseInt(document.getElementById('al_limit').value || 1000000);
+          
+          // Get SS BIPD base rate
+          const ssBipdResponse = await fetch('/rate/ss_bipd', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              state_code: stateCode
+            })
+          });
+          
+          if (!ssBipdResponse.ok) throw new Error('SS BIPD rate lookup failed');
+          const ssBipdData = await ssBipdResponse.json();
+          const ssBaseRate = parseFloat(ssBipdData.base_rate || 0);
+          
+          console.log('DEBUG - SS BIPD Base Rate:', ssBaseRate);
+          
+          // Get fleet factor
+          const fleetResponse = await fetch('/rate/fleet_size_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              num_vehicles: vehicleCount
+            })
+          });
+          
+          if (!fleetResponse.ok) throw new Error('Fleet size factor lookup failed');
+          const fleetData = await fleetResponse.json();
+          const fleetFactor = parseFloat(fleetData.rate_factor || 1.0);
+          
+          // Get OOS factor
+          const oosResponse = await fetch('/rate/oos_violations_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              usdot_violations: oosViolations
+            })
+          });
+          
+          if (!oosResponse.ok) throw new Error('OOS violations factor lookup failed');
+          const oosData = await oosResponse.json();
+          const oosFactor = parseFloat(oosData.rate_factor || 1.0);
+          
+          // Get ILF factor
+          const ilfResponse = await fetch('/rate/ilf_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              al_limit: alLimit
+            })
+          });
+          
+          if (!ilfResponse.ok) throw new Error('ILF factor lookup failed');
+          const ilfData = await ilfResponse.json();
+          const ilfFactor = parseFloat(ilfData.ilf_factor || 1.0);
+          
+          const alScheduleMod = parseFloat(document.getElementById('al_schedule_mod').value || 1.0);
+          
+          // Rate each vehicle
+          const vehicleRows = document.querySelectorAll('.vehicle-row');
+          let vehicleNum = 1;
+          
+          for (const row of vehicleRows) {
+            const isPowerUnit = row.querySelector('.veh_power').checked;
+            
+            if (isPowerUnit) {
+              try {
+                const vehicleClassSelect = row.querySelector('select[id$="_class"]');
+                const vehicleClass = vehicleClassSelect.value;
+                
+                const weightResponse = await fetch('/rate/weight_class_factor', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    business_use_type: businessUseType,
+                    vehicle_class: vehicleClass
+                  })
+                });
+                
+                if (!weightResponse.ok) throw new Error('Weight class factor lookup failed');
+                const weightData = await weightResponse.json();
+                const weightFactor = parseFloat(weightData.rate_factor || 1.0);
+                
+                const yearsResponse = await fetch('/rate/years_in_business_factor', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    effective_date: policyDate,
+                    years_in_business: yearsInBusiness
+                  })
+                });
+                
+                if (!yearsResponse.ok) throw new Error('Years in business factor lookup failed');
+                const yearsData = await yearsResponse.json();
+                const yearsFactor = parseFloat(yearsData.rate_factor || 1.0);
+                
+                const vehiclePremium = Math.round((ssBaseRate * weightFactor * yearsFactor * fleetFactor * oosFactor * ilfFactor * alScheduleMod) * 100) / 100;
+                
+                console.log(`SS BIPD Vehicle ${vehicleNum} Calculation:`, {
+                  ssBaseRate, weightFactor, yearsFactor, fleetFactor, oosFactor, ilfFactor, alScheduleMod, vehiclePremium
+                });
+                
+                ssBipdDetails.push({
+                  vehicleNum: vehicleNum,
+                  baseRate: ssBaseRate,
+                  weightFactor: weightFactor,
+                  yearsFactor: yearsFactor,
+                  fleetFactor: fleetFactor,
+                  oosFactor: oosFactor,
+                  ilfFactor: ilfFactor,
+                  scheduleModFactor: alScheduleMod,
+                  premium: vehiclePremium
+                });
+                
+                totalSsBipdPremium += vehiclePremium;
+                vehicleNum++;
+              } catch (error) {
+                console.error('Error fetching SS BIPD rate:', error);
+              }
+            }
+          }
+          
+          if (totalSsBipdPremium > 0) {
+            total_policy_premium += totalSsBipdPremium;
+            
+            let ssBipdBoxContent = `<strong>Auto Liability - Non Admitted BIPD Premium: ${formatter.format(totalSsBipdPremium)}</strong>`;
+            ssBipdBoxContent += `<div style="margin-top: 10px;">`;
+            ssBipdBoxContent += `<a href="#" onclick="toggleSsBipdDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+            ssBipdBoxContent += `</div>`;
+            ssBipdBoxContent += `<div id="ss_bipd_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+            ssBipdBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.8em;">`;
+            
+            ssBipdDetails.forEach(vehicle => {
+              ssBipdBoxContent += `<tr style="border-bottom: 1px solid #ddd; background-color: #f9f9f9;">`;
+              ssBipdBoxContent += `<th style="text-align: left; padding: 5px;">Veh</th>`;
+              ssBipdBoxContent += `<th style="text-align: right; padding: 5px;">Base</th>`;
+              ssBipdBoxContent += `<th style="text-align: right; padding: 5px;">Wgt</th>`;
+              ssBipdBoxContent += `<th style="text-align: right; padding: 5px;">Yrs</th>`;
+              ssBipdBoxContent += `<th style="text-align: right; padding: 5px;">Flt</th>`;
+              ssBipdBoxContent += `<th style="text-align: right; padding: 5px;">OOS</th>`;
+              ssBipdBoxContent += `<th style="text-align: right; padding: 5px;">ILF</th>`;
+              ssBipdBoxContent += `<th style="text-align: right; padding: 5px;">Mod</th>`;
+              ssBipdBoxContent += `<th style="text-align: right; padding: 5px;">Premium</th>`;
+              ssBipdBoxContent += `</tr>`;
+              
+              ssBipdBoxContent += `<tr style="border-bottom: 2px solid #999;">`;
+              ssBipdBoxContent += `<td style="padding: 5px;">V${vehicle.vehicleNum}</td>`;
+              ssBipdBoxContent += `<td style="text-align: right; padding: 5px;">${formatter.format(vehicle.baseRate)}</td>`;
+              ssBipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.weightFactor.toFixed(4)}</td>`;
+              ssBipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.yearsFactor.toFixed(4)}</td>`;
+              ssBipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.fleetFactor.toFixed(4)}</td>`;
+              ssBipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.oosFactor.toFixed(4)}</td>`;
+              ssBipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.ilfFactor.toFixed(4)}</td>`;
+              ssBipdBoxContent += `<td style="text-align: right; padding: 5px;">${vehicle.scheduleModFactor.toFixed(2)}</td>`;
+              ssBipdBoxContent += `<td style="text-align: right; padding: 5px; font-weight: bold;">${formatter.format(vehicle.premium)}</td>`;
+              ssBipdBoxContent += `</tr>`;
+            });
+            
+            ssBipdBoxContent += `</table></div>`;
+            premiumBoxesHtml += `<div class="result-premium-box">${ssBipdBoxContent}</div>`;
+          }
+        }
+
+        async function fetchTriaRate(coverageType) {
+          if (!include_tria) return 0.0; 
+          const response = await fetch('/get/tria_rate', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ "effective_date": policyDate, "coverage_type": coverageType, "accepted": true })
+          });
+          if (!response.ok) throw new Error(`${coverageType} TRIA rate lookup failed: ${response.statusText}`);
+          let data = await response.json(); 
+          return parseFloat(data.rate || 0);
+        }
+
+        async function fetchPolicyFee(coverageType) {
+          const response = await fetch('/get/policy_fee', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ "effective_date": policyDate, "coverage_type": coverageType })
+          });
+          if (!response.ok) throw new Error(`${coverageType} Policy Fee lookup failed: ${response.statusText}`);
+          let data = await response.json(); 
+          return parseFloat(data.fee || 0);
+        }
+
+        async function fetchUwFeeRate() {
+          const response = await fetch('/get/uw_fee_rate', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ "effective_date": policyDate })
+          });
+          if (!response.ok) throw new Error(`UW Fee Rate lookup failed: ${response.statusText}`);
+          let data = await response.json(); 
+          return parseFloat(data.rate || 0);
+        }
+
+        async function rateNTL() {
+          const response = await fetch('/rate/ntl', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ "effective_date": policyDate, "num_vehicles": vehicleCount })
+          });
+          if (!response.ok) throw new Error(`NTL rating failed: ${response.statusText}`);
+          let data = await response.json();
+          return parseFloat(data.premium || 0);
+        }
+
+        async function rateTGL() {
+          const response = await fetch('/rate/tgl', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ "effective_date": policyDate, "num_vehicles": vehicleCount })
+          });
+          if (!response.ok) throw new Error(`TGL rating failed: ${response.statusText}`);
+          let data = await response.json();
+          return parseFloat(data.premium || 0);
+        }
+
+        async function rateMTC(limit, reefer) {
+          const response = await fetch('/rate/mtc', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              "effective_date": policyDate, 
+              "num_vehicles": vehicleCount, 
+              "mtc_limit": limit, 
+              "mtc_reefer": reefer 
+            })
+          });
+          if (!response.ok) throw new Error(`MTC rating failed: ${response.statusText}`);
+          let data = await response.json();
+          return parseFloat(data.premium || 0);
+        }
+
+        async function rateTI(limit, uiia) {
+          const response = await fetch('/rate/ti', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              "effective_date": policyDate, 
+               "num_vehicles": vehicleCount, 
+               "num_trailers": trailerCount,
+              "ti_limit": limit, 
+              "ti_uiia": uiia 
+            })
+          });
+          if (!response.ok) throw new Error(`TI rating failed: ${response.statusText}`);
+          let data = await response.json();
+          return parseFloat(data.premium || 0);
+        }
+
+        const uw_rate = await fetchUwFeeRate();
+
+        if (include_ntl) {
+          const premium = await rateNTL();
+          const uw_fee = (uw_rate > 0 && vehicleCount > 0) ? uw_rate * vehicleCount : 0;
+          const policy_fee = await fetchPolicyFee('NTL');
+          const fees = uw_fee + policy_fee + ntl_broker_fee;
+          const total_due = premium + fees;
+
+          total_policy_premium += premium;
+          total_policy_fees += fees;
+
+          let boxContent = `NTL Premium ${formatter.format(premium)}`;
+          boxContent += `<hr class="result-divider">`;
+          if (policy_fee > 0) boxContent += `Policy Fee: ${formatter.format(policy_fee)}<br>`;
+          if (uw_fee > 0) boxContent += `UW Fee: ${formatter.format(uw_fee)}<br>`;
+          if (ntl_broker_fee > 0) boxContent += `Broker Fee: ${formatter.format(ntl_broker_fee)}<br>`;
+          boxContent += `Total NTL Fees: ${formatter.format(fees)}`;
+          boxContent += `<hr class="result-divider">`;
+          boxContent += `<span class="coverage-total-due">Total NTL Due: ${formatter.format(total_due)}</span>`;
+          premiumBoxesHtml += `<div class="result-premium-box">${boxContent}</div>`;
+        }
+
+        if (include_tgl) {
+          const premium_base = await rateTGL();
+          let premium_tria = 0.0;
+          if (include_tria && premium_base > 0) {
+            premium_tria = premium_base * await fetchTriaRate('TGL');
+          }
+          const premium_total = premium_base + premium_tria;
+
+          const uw_fee = (uw_rate > 0 && vehicleCount > 0) ? uw_rate * vehicleCount : 0;
+          const policy_fee = await fetchPolicyFee('TGL');
+          const fees = uw_fee + policy_fee + tgl_broker_fee;
+          const total_due = premium_total + fees;
+
+          total_policy_premium += premium_total;
+          total_policy_fees += fees;
+
+          let boxContent = `TGL Premium: ${formatter.format(premium_base)}`;
+          if (premium_tria > 0) boxContent += `<br>TGL TRIA Premium: ${formatter.format(premium_tria)}`;
+          boxContent += `<br><strong>Total TGL Premium: ${formatter.format(premium_total)}</strong>`; 
+          boxContent += `<hr class="result-divider">`;
+          if (policy_fee > 0) boxContent += `Policy Fee: ${formatter.format(policy_fee)}<br>`;
+          if (uw_fee > 0) boxContent += `UW Fee: ${formatter.format(uw_fee)}<br>`;
+          if (tgl_broker_fee > 0) boxContent += `Broker Fee: ${formatter.format(tgl_broker_fee)}<br>`;
+          boxContent += `Total TGL Fees: ${formatter.format(fees)}`;
+          boxContent += `<hr class="result-divider">`;
+          boxContent += `<span class="coverage-total-due">Total TGL Due: ${formatter.format(total_due)}</span>`;
+          premiumBoxesHtml += `<div class="result-premium-box">${boxContent}</div>`;
+        }
+
+        let mtc_prem = 0.0, ti_prem = 0.0, mtc_tria_prem = 0.0;
+        let mtc_uw_fee = 0.0, mtc_policy_fee = 0.0, ti_policy_fee = 0.0;
+
+        if (include_mtc) {
+          const mtc_limit = document.getElementById('mtc_limit').value;
+          const mtc_reefer = document.getElementById('mtc_reefer').checked;
+          mtc_prem = await rateMTC(mtc_limit, mtc_reefer);
+          mtc_uw_fee = (uw_rate > 0 && vehicleCount > 0) ? uw_rate * vehicleCount : 0; 
+          mtc_policy_fee = await fetchPolicyFee('MTC');
+          total_policy_premium += mtc_prem;
+        }
+
+        if (include_ti) {
+          const ti_limit = document.getElementById('ti_limit').value;
+          const ti_uiia = document.getElementById('ti_uiia').checked;
+          ti_prem = await rateTI(ti_limit, ti_uiia);
+          ti_policy_fee = await fetchPolicyFee('TI');
+          total_policy_premium += ti_prem;
+        }
+
+        const mtc_tria_base = mtc_prem + ti_prem;
+        if (include_tria && mtc_tria_base > 0) {
+          mtc_tria_prem = mtc_tria_base * await fetchTriaRate('MTC');
+          total_policy_premium += mtc_tria_prem;
+        }
+
+        const mtc_fees_total = mtc_uw_fee + mtc_policy_fee + ti_policy_fee + mtc_broker_fee;
+        const mtc_premium_total = mtc_prem + ti_prem + mtc_tria_prem;
+        const mtc_total_due = mtc_premium_total + mtc_fees_total;
+
+        total_policy_fees += mtc_fees_total;
+
+        if (include_mtc || include_ti) {
+          let mtcBoxContent = '';
+          if (include_mtc) mtcBoxContent += `MTC Premium: ${formatter.format(mtc_prem)}<br>`;
+          if (include_ti) mtcBoxContent += `Trailer Interchange Premium: ${formatter.format(ti_prem)}<br>`;
+          if (mtc_tria_prem > 0) mtcBoxContent += `MTC TRIA Premium: ${formatter.format(mtc_tria_prem)}<br>`;
+          mtcBoxContent += `<strong>Total MTC Premium: ${formatter.format(mtc_premium_total)}</strong><br>`; 
+          mtcBoxContent += `<hr class="result-divider">`;
+          if (mtc_policy_fee > 0) mtcBoxContent += `MTC Policy Fee: ${formatter.format(mtc_policy_fee)}<br>`;
+          if (ti_policy_fee > 0) mtcBoxContent += `TI Policy Fee: ${formatter.format(ti_policy_fee)}<br>`;
+          if (mtc_uw_fee > 0) mtcBoxContent += `UW Fee: ${formatter.format(mtc_uw_fee)}<br>`; 
+          if (mtc_broker_fee > 0) mtcBoxContent += `Broker Fee: ${formatter.format(mtc_broker_fee)}<br>`;
+          mtcBoxContent += `Total MTC/TI Fees: ${formatter.format(mtc_fees_total)}`;
+          mtcBoxContent += `<hr class="result-divider">`;
+          mtcBoxContent += `<span class="coverage-total-due">Total MTC/TI Due: ${formatter.format(mtc_total_due)}</span>`;
+          premiumBoxesHtml += `<div class="result-premium-box">${mtcBoxContent}</div>`;
+        }
+
+        const total_policy_due = total_policy_premium + total_policy_fees;
+
+        let finalHtml = premiumBoxesHtml; 
+        finalHtml += `<div class="result-totals-box">`;
+        finalHtml += `Total Policy Premium: ${formatter.format(total_policy_premium)}<br>`;
+        finalHtml += `Total Policy Fees: ${formatter.format(total_policy_fees)}`;
+        finalHtml += `</div>`;
+        finalHtml += `<div class="grand-total">Total Due: ${formatter.format(total_policy_due)}</div>`;
+
+        const includedCoveragesForTax = [];
+        if (include_ntl) includedCoveragesForTax.push('NTL');
+        if (include_tgl) includedCoveragesForTax.push('TGL');
+        if (include_mtc) includedCoveragesForTax.push('MTC');
+
+        if (stateCode && includedCoveragesForTax.length > 0) {
+          finalHtml += `<div class="coverage-section" style="margin-top: 15px;">
+            <h4>Taxability by Coverage and Fee Type (${stateCode})</h4>
+            <div id="taxability_table">Loading taxability…</div>
+            <div class="muted">Only the coverages you selected are displayed (TI excluded by design).</div>
+          </div>`;
+        }
+
+        resultDiv.innerHTML = finalHtml; 
+
+        if (stateCode && includedCoveragesForTax.length > 0) {
+          try {
+            const taxResp = await fetch("/get/fees_taxability", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ state_code: stateCode }),
+            });
+            if (!taxResp.ok) throw new Error(`Server error: ${taxResp.statusText}`);
+            const taxData = await taxResp.json();
+
+            const tableDiv = document.getElementById("taxability_table");
+            if (!taxData || taxData.length === 0) {
+              tableDiv.innerHTML = "No data found for this state.";
+            } else {
+              tableDiv.innerHTML = buildTaxTable(taxData, includedCoveragesForTax);
+            }
+          } catch (err) {
+            const tableDiv = document.getElementById("taxability_table");
+            if (tableDiv) tableDiv.innerHTML = `<span style="color:red;">Error loading taxability: ${err.message}</span>`;
+          }
+        }
+      } catch (error) {
+        console.error("Error during calculation:", error);
+        resultDiv.style.color = 'red';
+        resultDiv.innerText = `Calculation Error: ${error.message}`;
+      }
+    }
+  </script>
+
+</body>
+</html>

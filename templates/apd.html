@@ -1,0 +1,883 @@
+
+// --- APD (Auto Physical Damage) CALCULATION ---
+const include_apd = document.getElementById('check_apd').checked;
+
+if (include_apd) {
+  // Get business use type (needed for rate factor class lookup)
+  const businessUseType = document.getElementById('businessusetype').value;
+  
+  // Get USDOT violations (policy-level factor)
+  const usdotViolations = parseInt(document.getElementById('oosviolations').value || 0);
+  
+  // Get years in business (policy-level factor)
+  const yearsInBusiness = parseInt(document.getElementById('yearsinbusiness').value || 0);
+  
+  // Get radius percentages (policy-level factor)
+  const radius0 = parseFloat(document.getElementById('radius0').value || 0);
+  const radius51 = parseFloat(document.getElementById('radius51').value || 0);
+  const radius201 = parseFloat(document.getElementById('radius201').value || 0);
+  const radius501 = parseFloat(document.getElementById('radius501').value || 0);
+  
+  // Get zip code (for population density lookup)
+  const zipCode = document.getElementById('zip_code').value;
+  
+  // Get APD schedule rating mod
+  const apdScheduleMod = parseFloat(document.getElementById('apd_schedule_rating').value || 1.0);
+  console.log(`DEBUG APD - Schedule Rating Mod: ${apdScheduleMod}`);
+  
+  let totalTIV = 0.0;
+  let vehicleRates = [];
+  
+  const vehicleRowsApd = document.querySelectorAll('.vehicle-row');
+  
+  // FIRST PASS: Calculate Total Insured Value (TIV) and count power units
+  let powerUnitCount = 0;
+  for (const row of vehicleRowsApd) {
+    const isPowerUnit = row.querySelector('.veh_power').checked;
+    const isTrailer = row.querySelector('.veh_trailer').checked;
+    const apdCoverageSelect = row.querySelector('select[id$="_apd"]');
+    const apdCoverage = apdCoverageSelect.value;
+    
+    if ((isPowerUnit || isTrailer) && apdCoverage === 'Include') {
+      const vehicleValueInput = row.querySelector('input[id$="_value"]');
+      const vehicleValue = parseFloat(vehicleValueInput?.value || 0);
+      if (vehicleValue > 0) {
+        totalTIV += vehicleValue;
+      }
+      
+      // Count power units for fleet size factor
+      if (isPowerUnit) {
+        powerUnitCount++;
+      }
+    }
+  }
+  
+  console.log(`DEBUG APD - Total TIV: ${formatter.format(totalTIV)}`);
+  console.log(`DEBUG APD - Power Unit Count: ${powerUnitCount}`);
+  
+  // SECOND PASS: Calculate vehicle rates and weighted rates
+  let vehicleNumApd = 1;
+  
+  for (const row of vehicleRowsApd) {
+    const isPowerUnit = row.querySelector('.veh_power').checked;
+    const isTrailer = row.querySelector('.veh_trailer').checked;
+    const apdCoverageSelect = row.querySelector('select[id$="_apd"]');
+    const apdCoverage = apdCoverageSelect.value;
+    
+    if ((isPowerUnit || isTrailer) && apdCoverage === 'Include') {
+      try {
+        // Get vehicle value
+        const vehicleValueInput = row.querySelector('input[id$="_value"]');
+        const vehicleValue = parseFloat(vehicleValueInput?.value || 0);
+        
+        // Get deductible
+        const deductibleSelect = row.querySelector('select[id$="_ded"]');
+        const deductible = parseFloat(deductibleSelect?.value || 0);
+        
+        // Get vehicle class
+        const vehicleClassSelect = row.querySelector('select[id$="_class"]');
+        const vehicleClass = vehicleClassSelect.value;
+        
+        // Get vehicle year
+        const vehicleYearInput = row.querySelector('input[id$="_year"]');
+        const vehicleYear = parseInt(vehicleYearInput?.value || 0);
+        
+        // Calculate vehicle age
+        const policyYear = new Date(policyDate).getFullYear();
+        const vehicleAge = policyYear - vehicleYear;
+        
+        if (vehicleValue > 0 && totalTIV > 0) {
+          // Fetch Vehicle Value Factor
+          const valueFactorResponse = await fetch('/rate/apd_vehicle_value_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              vehicle_value: vehicleValue
+            })
+          });
+          
+          if (!valueFactorResponse.ok) throw new Error('APD Vehicle Value factor lookup failed');
+          const valueFactorData = await valueFactorResponse.json();
+          const vehicleValueFactor = parseFloat(valueFactorData.factor || 1.0);
+          
+          // Fetch Rate Factor Class (or use default for trailers)
+          let rateFactorClass = 1.0;
+          
+          if (isTrailer && !isPowerUnit) {
+            // Trailers use default factor of 0.75
+            rateFactorClass = 0.75;
+            console.log(`APD Vehicle ${vehicleNumApd} - Trailer using default Rate Factor Class: 0.75`);
+          } else {
+            // Power units fetch from database
+            const rateFactorClassResponse = await fetch('/rate/apd_rate_factor_class', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                effective_date: policyDate,
+                vehicle_class: vehicleClass
+              })
+            });
+            
+            if (!rateFactorClassResponse.ok) {
+              const errorText = await rateFactorClassResponse.text();
+              console.error('APD Rate Factor Class error:', errorText);
+              throw new Error(`APD Rate Factor Class lookup failed: ${rateFactorClassResponse.status}`);
+            }
+            
+            const rateFactorClassData = await rateFactorClassResponse.json();
+            rateFactorClass = parseFloat(rateFactorClassData.factor || 1.0);
+          }
+          
+          // Fetch Vehicle Age Factor
+          const vehicleAgeFactorResponse = await fetch('/rate/apd_vehicle_age_factor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              effective_date: policyDate,
+              vehicle_year: vehicleYear
+            })
+          });
+          
+          if (!vehicleAgeFactorResponse.ok) {
+            const errorText = await vehicleAgeFactorResponse.text();
+            console.error('APD Vehicle Age Factor error:', errorText);
+            throw new Error(`APD Vehicle Age Factor lookup failed: ${vehicleAgeFactorResponse.status}`);
+          }
+          
+          const vehicleAgeFactorData = await vehicleAgeFactorResponse.json();
+          const vehicleAgeFactor = parseFloat(vehicleAgeFactorData.factor || 1.0);
+          
+          // Calculate Vehicle Rate (includes all three factors)
+          const vehicleRate = vehicleValueFactor * rateFactorClass * vehicleAgeFactor;
+          
+          // Calculate vehicle's percentage of TIV
+          const vehiclePctOfTIV = vehicleValue / totalTIV;
+          
+          // Calculate Weighted Rate
+          const weightedRate = vehiclePctOfTIV * vehicleRate;
+          
+          console.log(`APD Vehicle ${vehicleNumApd}:`);
+          console.log(`  Value: ${formatter.format(vehicleValue)}`);
+          console.log(`  Vehicle Value Factor: ${vehicleValueFactor.toFixed(6)}`);
+          console.log(`  Rate Factor Class: ${rateFactorClass.toFixed(6)}`);
+          console.log(`  Age Factor: ${vehicleAgeFactor.toFixed(6)}`);
+          console.log(`  Vehicle Rate: ${vehicleRate.toFixed(6)}`);
+          console.log(`  % of TIV: ${(vehiclePctOfTIV * 100).toFixed(2)}%`);
+          console.log(`  Weighted Rate: ${weightedRate.toFixed(7)}`);
+          
+          vehicleRates.push({
+            vehicleNum: vehicleNumApd,
+            vehicleValue: vehicleValue,
+            vehicleYear: vehicleYear,
+            vehicleAge: vehicleAge,
+            deductible: deductible,
+            vehicleValueFactor: vehicleValueFactor,
+            rateFactorClass: rateFactorClass,
+            vehicleAgeFactor: vehicleAgeFactor,
+            vehicleRate: vehicleRate,
+            pctOfTIV: vehiclePctOfTIV,
+            weightedRate: weightedRate,
+            isPowerUnit: isPowerUnit,
+            isTrailer: isTrailer
+          });
+        }
+        
+        vehicleNumApd++;
+      } catch (error) {
+        console.error('Error rating APD vehicle:', error);
+        vehicleNumApd++;
+      }
+    } else if (isPowerUnit || isTrailer) {
+      vehicleNumApd++; // Increment counter even for excluded vehicles
+    }
+  }
+  
+  // STEP 3: Calculate Equipment Rate - round to 4 decimals
+  const equipmentRate = Math.round(vehicleRates.reduce((sum, v) => sum + v.weightedRate, 0) * 10000) / 10000;
+  console.log(`DEBUG APD - Equipment Rate: ${equipmentRate.toFixed(4)}`);
+  
+  // STEP 4: Fetch OOS Factor (policy-level)
+  const oosFactorResponse = await fetch('/rate/apd_oos_factor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      effective_date: policyDate,
+      violations: usdotViolations
+    })
+  });
+  
+  if (!oosFactorResponse.ok) {
+    const errorText = await oosFactorResponse.text();
+    console.error('APD OOS Factor error:', errorText);
+    throw new Error(`APD OOS Factor lookup failed: ${oosFactorResponse.status}`);
+  }
+  
+  const oosFactorData = await oosFactorResponse.json();
+  const oosFactor = parseFloat(oosFactorData.factor || 1.0);
+  
+  console.log(`DEBUG APD - OOS Factor: ${oosFactor.toFixed(6)}`);
+  
+  // STEP 5: Fetch Fleet Size Factor (policy-level, based on power units)
+  const fleetSizeFactorResponse = await fetch('/rate/apd_fleet_size_factor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      effective_date: policyDate,
+      num_power_units: powerUnitCount
+    })
+  });
+  
+  if (!fleetSizeFactorResponse.ok) {
+    const errorText = await fleetSizeFactorResponse.text();
+    console.error('APD Fleet Size Factor error:', errorText);
+    throw new Error(`APD Fleet Size Factor lookup failed: ${fleetSizeFactorResponse.status}`);
+  }
+  
+  const fleetSizeFactorData = await fleetSizeFactorResponse.json();
+  const apdFleetSizeFactor = parseFloat(fleetSizeFactorData.factor || 1.0);
+  
+  console.log(`DEBUG APD - Fleet Size Factor: ${apdFleetSizeFactor.toFixed(6)}`);
+  
+  // STEP 6: Fetch Radius Factor (policy-level)
+  const radiusFactorResponse = await fetch('/rate/apd_radius_factor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      effective_date: policyDate,
+      radius_0_50: radius0,
+      radius_51_200: radius51,
+      radius_201_500: radius201,
+      radius_501_plus: radius501
+    })
+  });
+  
+  if (!radiusFactorResponse.ok) {
+    const errorText = await radiusFactorResponse.text();
+    console.error('APD Radius Factor error:', errorText);
+    throw new Error(`APD Radius Factor lookup failed: ${radiusFactorResponse.status}`);
+  }
+  
+  const radiusFactorData = await radiusFactorResponse.json();
+  const radiusFactor = parseFloat(radiusFactorData.weighted_factor || 1.0);
+  
+  console.log(`DEBUG APD - Radius Factor: ${radiusFactor.toFixed(6)}`);
+  
+  // STEP 7: Fetch Population Density Factor (policy-level, based on zip code)
+  const densityFactorResponse = await fetch('/rate/apd_population_density_factor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      effective_date: policyDate,
+      zip_code: zipCode
+    })
+  });
+  
+  if (!densityFactorResponse.ok) {
+    const errorText = await densityFactorResponse.text();
+    console.error('APD Population Density Factor error:', errorText);
+    throw new Error(`APD Population Density Factor lookup failed: ${densityFactorResponse.status}`);
+  }
+  
+  const densityFactorData = await densityFactorResponse.json();
+  const densityFactor = parseFloat(densityFactorData.factor || 1.49);
+  const populationDensity = densityFactorData.density;
+  
+  console.log(`DEBUG APD - Population Density: ${populationDensity}, Factor: ${densityFactor.toFixed(6)}`);
+  
+  // STEP 8: Fetch State Factor (policy-level)
+  const stateFactorResponse = await fetch('/rate/apd_state_factor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      effective_date: policyDate,
+      state_code: stateCode
+    })
+  });
+  
+  if (!stateFactorResponse.ok) {
+    const errorText = await stateFactorResponse.text();
+    console.error('APD State Factor error:', errorText);
+    throw new Error(`APD State Factor lookup failed: ${stateFactorResponse.status}`);
+  }
+  
+  const stateFactorData = await stateFactorResponse.json();
+  const stateFactor = parseFloat(stateFactorData.factor || 1.0);
+  
+  console.log(`DEBUG APD - State Factor: ${stateFactor.toFixed(6)}`);
+  
+  // STEP 9: Fetch YIB Factor (policy-level)
+  const yibFactorResponse = await fetch('/rate/apd_yib_factor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      effective_date: policyDate,
+      years_in_business: yearsInBusiness
+    })
+  });
+  
+  if (!yibFactorResponse.ok) {
+    const errorText = await yibFactorResponse.text();
+    console.error('APD YIB Factor error:', errorText);
+    throw new Error(`APD YIB Factor lookup failed: ${yibFactorResponse.status}`);
+  }
+  
+  const yibFactorData = await yibFactorResponse.json();
+  const yibFactor = parseFloat(yibFactorData.factor || 1.0);
+  
+  console.log(`DEBUG APD - YIB Factor: ${yibFactor.toFixed(6)}`);
+  
+  // STEP 10: Fetch Driver Age Factor (policy-level, average of all drivers)
+  const driverRows = document.querySelectorAll('.driver-row');
+  let driversForApd = [];
+  
+  for (const driverRow of driverRows) {
+    const ageInput = driverRow.querySelector('input[id$="_age"]');
+    const age = parseInt(ageInput?.value || 0);
+    
+    if (age > 0) {
+      driversForApd.push({ age: age });
+    }
+  }
+  
+  console.log(`DEBUG APD - Drivers for age factor: ${driversForApd.length}`, driversForApd);
+  
+  let apdDriverAgeFactor = 1.0;  // Default
+  
+  if (driversForApd.length > 0) {
+    const driverAgeFactorResponse = await fetch('/rate/apd_driver_age_factor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        effective_date: policyDate,
+        drivers: driversForApd
+      })
+    });
+    
+    if (!driverAgeFactorResponse.ok) {
+      const errorText = await driverAgeFactorResponse.text();
+      console.error('APD Driver Age Factor error:', errorText);
+      throw new Error(`APD Driver Age Factor lookup failed: ${driverAgeFactorResponse.status}`);
+    }
+    
+    const driverAgeFactorData = await driverAgeFactorResponse.json();
+    apdDriverAgeFactor = parseFloat(driverAgeFactorData.driver_age_factor || 1.0);
+    
+    console.log(`DEBUG APD - Driver Age Factor: ${apdDriverAgeFactor.toFixed(6)}`);
+    console.log(`DEBUG APD - Individual Driver Age Factors:`, driverAgeFactorData.individual_factors);
+  } else {
+    console.log('DEBUG APD - No drivers found, using default driver age factor 1.0');
+  }
+  
+  // STEP 11: Fetch Driver Experience Factor (policy-level, average of all drivers)
+  let driversForApdExp = [];
+  
+  for (const driverRow of driverRows) {
+    const ageInput = driverRow.querySelector('input[id$="_age"]');
+    const experienceInput = driverRow.querySelector('input[id$="_experience"]');
+    const age = parseInt(ageInput?.value || 0);
+    const experience = parseInt(experienceInput?.value || 0);
+    
+    if (age > 0) {  // Only include drivers with an age
+      driversForApdExp.push({ experience: experience });
+    }
+  }
+  
+  console.log(`DEBUG APD - Drivers for experience factor: ${driversForApdExp.length}`, driversForApdExp);
+  
+  let apdDriverExpFactor = 1.0;  // Default
+  
+  if (driversForApdExp.length > 0) {
+    const driverExpFactorResponse = await fetch('/rate/apd_driver_experience_factor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        effective_date: policyDate,
+        drivers: driversForApdExp
+      })
+    });
+    
+    if (!driverExpFactorResponse.ok) {
+      const errorText = await driverExpFactorResponse.text();
+      console.error('APD Driver Experience Factor error:', errorText);
+      throw new Error(`APD Driver Experience Factor lookup failed: ${driverExpFactorResponse.status}`);
+    }
+    
+    const driverExpFactorData = await driverExpFactorResponse.json();
+    apdDriverExpFactor = parseFloat(driverExpFactorData.driver_experience_factor || 1.0);
+    
+    console.log(`DEBUG APD - Driver Experience Factor: ${apdDriverExpFactor.toFixed(6)}`);
+    console.log(`DEBUG APD - Individual Driver Experience Factors:`, driverExpFactorData.individual_factors);
+  } else {
+    console.log('DEBUG APD - No drivers found, using default driver experience factor 1.0');
+  }
+  
+  // STEP 12: Fetch Driver Violations Factor (policy-level, formula-based)
+  let driversForApdViolations = [];
+  
+  for (const driverRow of driverRows) {
+    const ageInput = driverRow.querySelector('input[id$="_age"]');
+    const violationsInput = driverRow.querySelector('input[id$="_violations"]');
+    const age = parseInt(ageInput?.value || 0);
+    const violations = parseInt(violationsInput?.value || 0);
+    
+    if (age > 0) {  // Only include drivers with an age
+      driversForApdViolations.push({ violations: violations });
+    }
+  }
+  
+  console.log(`DEBUG APD - Drivers for violations factor: ${driversForApdViolations.length}`, driversForApdViolations);
+  
+  let apdDriverViolationsFactor = 1.0;  // Default
+  
+  if (driversForApdViolations.length > 0) {
+    const driverViolationsFactorResponse = await fetch('/rate/apd_driver_violations_factor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        effective_date: policyDate,
+        drivers: driversForApdViolations
+      })
+    });
+    
+    if (!driverViolationsFactorResponse.ok) {
+      const errorText = await driverViolationsFactorResponse.text();
+      console.error('APD Driver Violations Factor error:', errorText);
+      throw new Error(`APD Driver Violations Factor lookup failed: ${driverViolationsFactorResponse.status}`);
+    }
+    
+    const driverViolationsFactorData = await driverViolationsFactorResponse.json();
+    apdDriverViolationsFactor = parseFloat(driverViolationsFactorData.driver_violations_factor || 1.0);
+    
+    console.log(`DEBUG APD - Driver Violations Factor: ${apdDriverViolationsFactor.toFixed(6)}`);
+    console.log(`DEBUG APD - Total Violations: ${driverViolationsFactorData.total_violations}`);
+  } else {
+    console.log('DEBUG APD - No drivers found, using default driver violations factor 1.0');
+  }
+
+  // STEP 13: Fetch Driver Crashes Factor (policy-level, formula-based)
+  let driversForApdCrashes = [];
+  
+  for (const driverRow of driverRows) {
+    const ageInput = driverRow.querySelector('input[id$="_age"]');
+    const crashesInput = driverRow.querySelector('input[id$="_crashes"]');
+    const age = parseInt(ageInput?.value || 0);
+    const crashes = parseInt(crashesInput?.value || 0);
+    
+    if (age > 0) {  // Only include drivers with an age
+      driversForApdCrashes.push({ crashes: crashes });
+    }
+  }
+  
+  console.log(`DEBUG APD - Drivers for crashes factor: ${driversForApdCrashes.length}`, driversForApdCrashes);
+  
+  let apdDriverCrashesFactor = 1.0;  // Default
+  
+  if (driversForApdCrashes.length > 0) {
+    const driverCrashesFactorResponse = await fetch('/rate/apd_driver_crashes_factor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        effective_date: policyDate,
+        drivers: driversForApdCrashes
+      })
+    });
+    
+    if (!driverCrashesFactorResponse.ok) {
+      const errorText = await driverCrashesFactorResponse.text();
+      console.error('APD Driver Crashes Factor error:', errorText);
+      throw new Error(`APD Driver Crashes Factor lookup failed: ${driverCrashesFactorResponse.status}`);
+    }
+    
+    const driverCrashesFactorData = await driverCrashesFactorResponse.json();
+    apdDriverCrashesFactor = parseFloat(driverCrashesFactorData.driver_crashes_factor || 1.0);
+    
+    console.log(`DEBUG APD - Driver Crashes Factor: ${apdDriverCrashesFactor.toFixed(6)}`);
+    console.log(`DEBUG APD - Total Crashes: ${driverCrashesFactorData.total_crashes}`);
+  } else {
+    console.log('DEBUG APD - No drivers found, using default driver crashes factor 1.0');
+  }
+  
+  // STEP 14: Fetch APD MP YIB Factor
+  const apdMpYibResponse = await fetch('/rate/apd_mp_yib', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      effective_date: policyDate,
+      years_in_business: yearsInBusiness
+    })
+  });
+
+  if (!apdMpYibResponse.ok) {
+    const errorText = await apdMpYibResponse.text();
+    console.error('APD MP YIB Factor error:', errorText);
+    throw new Error(`APD MP YIB Factor lookup failed: ${apdMpYibResponse.status}`);
+  }
+
+  const apdMpYibData = await apdMpYibResponse.json();
+  const apdMpYibFactor = parseFloat(apdMpYibData.factor || 0.0424);
+
+  console.log(`DEBUG APD - MP YIB Factor: ${apdMpYibFactor.toFixed(6)} (Years in Business: ${yearsInBusiness})`);
+  
+  // STEP 15: Calculate each vehicle's premium (without applying minimum at vehicle level)
+  let totalApdPremium = 0.0;
+  let apdPremiumDetails = [];
+  let numberOfVehicles = vehicleRates.length;
+  
+  for (const vehicle of vehicleRates) {
+    try {
+      // Fetch Deductible Factor (vehicle-specific)
+      const deductibleFactorResponse = await fetch('/rate/apd_deductible_factor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          effective_date: policyDate,
+          deductible: vehicle.deductible
+        })
+      });
+      
+      if (!deductibleFactorResponse.ok) {
+        const errorText = await deductibleFactorResponse.text();
+        console.error('APD Deductible Factor error:', errorText);
+        throw new Error(`APD Deductible Factor lookup failed: ${deductibleFactorResponse.status}`);
+      }
+      
+      const deductibleFactorData = await deductibleFactorResponse.json();
+      const deductibleFactor = parseFloat(deductibleFactorData.factor || 1.0);
+      
+      // Calculate Final Rate: Equipment Rate × OOS × Fleet Size × Radius × Density × State × YIB × Driver Age × Driver Experience × Driver Crashes × Driver Violations × Deductible
+      let vehicleFinalRate = equipmentRate * oosFactor * apdFleetSizeFactor * radiusFactor * densityFactor * stateFactor * yibFactor * apdDriverAgeFactor * apdDriverExpFactor * apdDriverCrashesFactor * apdDriverViolationsFactor * deductibleFactor;
+      vehicleFinalRate = Math.round(vehicleFinalRate * 10000) / 10000;  // Round to 4 decimals
+      
+      // Calculate Premium: Final Rate × Vehicle Value (no minimum applied at vehicle level)
+      const vehiclePremium = Math.round((vehicleFinalRate * vehicle.vehicleValue) * 100) / 100;
+      
+      console.log(`APD Premium - Vehicle ${vehicle.vehicleNum}:`);
+      console.log(`  Equipment Rate: ${equipmentRate.toFixed(4)}`);
+      console.log(`  OOS Factor: ${oosFactor.toFixed(6)}`);
+      console.log(`  Fleet Size Factor: ${apdFleetSizeFactor.toFixed(6)}`);
+      console.log(`  Radius Factor: ${radiusFactor.toFixed(6)}`);
+      console.log(`  Density Factor: ${densityFactor.toFixed(6)}`);
+      console.log(`  State Factor: ${stateFactor.toFixed(6)}`);
+      console.log(`  YIB Factor: ${yibFactor.toFixed(6)}`);
+      console.log(`  Driver Age Factor: ${apdDriverAgeFactor.toFixed(6)}`);
+      console.log(`  Driver Experience Factor: ${apdDriverExpFactor.toFixed(6)}`);
+      console.log(`  Driver Violations Factor: ${apdDriverViolationsFactor.toFixed(6)}`);
+      console.log(`  Driver Crashes Factor: ${apdDriverCrashesFactor.toFixed(6)}`);
+      console.log(`  Deductible Factor: ${deductibleFactor.toFixed(6)}`);
+      console.log(`  Final Rate: ${vehicleFinalRate.toFixed(6)}`);
+      console.log(`  Vehicle Value: ${formatter.format(vehicle.vehicleValue)}`);
+      console.log(`  Calculated Premium: ${formatter.format(vehiclePremium)}`);
+      
+      apdPremiumDetails.push({
+        ...vehicle,
+        oosFactor: oosFactor,
+        fleetSizeFactor: apdFleetSizeFactor,
+        radiusFactor: radiusFactor,
+        densityFactor: densityFactor,
+        stateFactor: stateFactor,
+        yibFactor: yibFactor,
+        driverAgeFactor: apdDriverAgeFactor,
+        driverExpFactor: apdDriverExpFactor,
+        driverViolationsFactor: apdDriverViolationsFactor,
+        driverCrashesFactor: apdDriverCrashesFactor,
+        deductibleFactor: deductibleFactor,        
+        finalRate: vehicleFinalRate,
+        vehiclePremium: vehiclePremium
+      });
+      
+      totalApdPremium += vehiclePremium;
+    } catch (error) {
+      console.error(`Error calculating premium for vehicle ${vehicle.vehicleNum}:`, error);
+    }
+  }
+  
+  console.log(`DEBUG APD - Total Premium (sum of vehicle premiums): ${formatter.format(totalApdPremium)}`);
+  console.log(`DEBUG APD - Number of Vehicles: ${numberOfVehicles}`);
+  
+  // Calculate Policy Rate: Total Premium / Total TIV
+  const policyRate = totalTIV > 0 ? (totalApdPremium / totalTIV) : 0;
+  console.log(`DEBUG APD - Policy Rate: ${policyRate.toFixed(6)} (${formatter.format(totalApdPremium)} / ${formatter.format(totalTIV)})`);
+
+  // Calculate APD Loss Ratios for each year
+  const apdLossesYear1 = parseFloat(document.getElementById('apdlossesyear1').value || 0);
+  const apdLossesYear2 = parseFloat(document.getElementById('apdlossesyear2').value || 0);
+  const apdLossesYear3 = parseFloat(document.getElementById('apdlossesyear3').value || 0);
+  
+  const lossRatioYear1 = totalApdPremium > 0 ? (apdLossesYear1 / totalApdPremium) : 0;
+  const lossRatioYear2 = totalApdPremium > 0 ? (apdLossesYear2 / totalApdPremium) : 0;
+  const lossRatioYear3 = totalApdPremium > 0 ? (apdLossesYear3 / totalApdPremium) : 0;
+  
+  console.log(`DEBUG APD - Loss Ratio Year 1: ${(lossRatioYear1 * 100).toFixed(2)}% (${formatter.format(apdLossesYear1)} / ${formatter.format(totalApdPremium)})`);
+  console.log(`DEBUG APD - Loss Ratio Year 2: ${(lossRatioYear2 * 100).toFixed(2)}% (${formatter.format(apdLossesYear2)} / ${formatter.format(totalApdPremium)})`);
+  console.log(`DEBUG APD - Loss Ratio Year 3: ${(lossRatioYear3 * 100).toFixed(2)}% (${formatter.format(apdLossesYear3)} / ${formatter.format(totalApdPremium)})`);
+  
+  // Fetch APD Loss Factors based on loss ratios
+  const apdLossFactorResponse = await fetch('/rate/apd_loss_factor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      effective_date: policyDate,
+      loss_ratio_year1: lossRatioYear1,
+      loss_ratio_year2: lossRatioYear2,
+      loss_ratio_year3: lossRatioYear3
+    })
+  });
+  
+  if (!apdLossFactorResponse.ok) {
+    const errorText = await apdLossFactorResponse.text();
+    console.error('APD Loss Factor error:', errorText);
+    throw new Error(`APD Loss Factor lookup failed: ${apdLossFactorResponse.status}`);
+  }
+  
+  const apdLossFactorData = await apdLossFactorResponse.json();
+  const lossFactorYear1 = parseFloat(apdLossFactorData.year1_factor || 1.0);
+  const lossFactorYear2 = parseFloat(apdLossFactorData.year2_factor || 0.0);
+  const lossFactorYear3 = parseFloat(apdLossFactorData.year3_factor || 0.0);
+  
+  console.log(`DEBUG APD - Loss Factor Year 1: ${lossFactorYear1.toFixed(4)}`);
+  console.log(`DEBUG APD - Loss Factor Year 2: ${lossFactorYear2.toFixed(4)}`);
+  console.log(`DEBUG APD - Loss Factor Year 3: ${lossFactorYear3.toFixed(4)}`);
+
+  // Calculate Final Loss Ratio Factor (sum of all three years)
+  const finalLossRatioFactor = lossFactorYear1 + lossFactorYear2 + lossFactorYear3;
+  console.log(`DEBUG APD - Final Loss Ratio Factor: ${finalLossRatioFactor.toFixed(4)} (${lossFactorYear1} + ${lossFactorYear2} + ${lossFactorYear3})`);
+  
+  // Pre-Loss Ratio Premium is what we already calculated
+  const preLossRatioPremium = totalApdPremium;
+  
+  // Manual Premium = Pre-Loss Ratio Premium × Final Loss Ratio Factor
+  const manualPremium = preLossRatioPremium * finalLossRatioFactor;
+  console.log(`DEBUG APD - Pre-Loss Ratio Premium: ${formatter.format(preLossRatioPremium)}`);
+  console.log(`DEBUG APD - Manual Premium: ${formatter.format(manualPremium)} (${formatter.format(preLossRatioPremium)} × ${finalLossRatioFactor.toFixed(4)})`);
+  
+  // Modified Premium = Manual Premium × Schedule Rating Mod
+  const modifiedPremium = manualPremium * apdScheduleMod;
+  console.log(`DEBUG APD - Modified Premium: ${formatter.format(modifiedPremium)} (${formatter.format(manualPremium)} × ${apdScheduleMod.toFixed(2)})`);
+  
+  // Policy Minimum #1: MP YIB Factor × Total TIV × Schedule Rating Mod
+  const mpYibMinimum = (apdMpYibFactor * totalTIV) * apdScheduleMod;
+  console.log(`DEBUG APD - MP YIB Minimum: ${formatter.format(mpYibMinimum)} (${apdMpYibFactor.toFixed(6)} × ${formatter.format(totalTIV)} × ${apdScheduleMod.toFixed(2)})`);
+  
+  // Policy Minimum #2: 60% Loss Ratio Minimum Premium
+  // Formula: Total losses for all 3 years / (0.6 × min(years_in_business, 3))
+  const totalApdLosses = apdLossesYear1 + apdLossesYear2 + apdLossesYear3;
+  const yearsForLossCalc = Math.min(yearsInBusiness, 3);
+  let lossRatioMinimum = 0;
+  
+  if (yearsForLossCalc > 0 && totalApdLosses > 0) {
+    lossRatioMinimum = totalApdLosses / (0.6 * yearsForLossCalc);
+    console.log(`DEBUG APD - 60% LR Minimum: ${formatter.format(lossRatioMinimum)} (${formatter.format(totalApdLosses)} / (0.6 × ${yearsForLossCalc}))`);
+  } else {
+    console.log(`DEBUG APD - 60% LR Minimum: Not applicable (years: ${yearsForLossCalc}, losses: ${formatter.format(totalApdLosses)})`);
+  }
+  
+  // Final Premium = max(Modified Premium, MP YIB Minimum, 60% LR Minimum)
+  const finalPremium = Math.max(modifiedPremium, mpYibMinimum, lossRatioMinimum);
+  
+  let minimumAppliedType = 'Modified Premium';
+  if (finalPremium === mpYibMinimum && finalPremium > modifiedPremium) {
+    minimumAppliedType = 'MP YIB Minimum';
+  } else if (finalPremium === lossRatioMinimum && finalPremium > modifiedPremium) {
+    minimumAppliedType = '60% Loss Ratio Minimum';
+  }
+  
+  console.log(`DEBUG APD - Final Premium: ${formatter.format(finalPremium)} (${minimumAppliedType})`);
+
+  // Calculate APD Trailer Interchange if selected
+  let apd_ti_prem = 0.0;
+  let apd_ti_policy_fee = 0.0;
+
+  const include_apd_ti = document.getElementById('check_apdtic').checked;
+
+  if (include_apd_ti) {
+    const apd_ti_limit = document.getElementById('apd_ti_limit').value;
+    const apd_ti_uiia = false; // APD TI doesn't have UIIA exposure
+    
+    apd_ti_prem = await rateTI(apd_ti_limit, apd_ti_uiia);
+    
+    const apdTiPolicyFeeData = await fetchPolicyFee('TI');
+    apd_ti_policy_fee = apdTiPolicyFeeData.fee;
+    
+    console.log(`DEBUG APD TI - Premium: ${formatter.format(apd_ti_prem)}, Policy Fee: ${formatter.format(apd_ti_policy_fee)}`);
+  }
+
+  // Calculate APD Towing, Storage and Labor if selected
+  let apd_tsl_prem = 0.0;
+
+  const include_apd_tsl = document.getElementById('check_tow').checked;
+
+  if (include_apd_tsl) {
+    const tow_limit = parseInt(document.getElementById('tow_limit').value);
+    apd_tsl_prem = await rateApdTsl(tow_limit);
+    
+    console.log(`DEBUG APD TSL - Premium: ${formatter.format(apd_tsl_prem)}`);
+  }
+    
+  if (totalApdPremium > 0 || apd_ti_prem > 0 || apd_tsl_prem > 0) {
+    // Fetch APD policy fee
+    const apdPolicyFeeData = await fetchPolicyFee('APD');
+    const apd_policy_fee = apdPolicyFeeData.fee;
+    const apd_broker_fee = parseFloat(document.getElementById('apd_broker_fee').value || 0);
+    
+    // Calculate combined premium and fees
+    const apd_premium_total = finalPremium + apd_ti_prem + apd_tsl_prem;
+    const apd_fees = apd_policy_fee + apd_ti_policy_fee + apd_broker_fee;
+    const apd_total_due = apd_premium_total + apd_fees;
+    
+    total_policy_premium += apd_premium_total;
+    total_policy_fees += apd_fees;
+    
+    let apdBoxContent = `<strong>Auto Physical Damage Premium: ${formatter.format(finalPremium)}</strong>`;
+    if (minimumAppliedType !== 'Modified Premium') {
+      apdBoxContent += ` <span style="color: #d9534f; font-size: 0.9em;">(${minimumAppliedType} Applied)</span>`;
+    }
+    
+    // Add TI premium if included
+    if (apd_ti_prem > 0) {
+      apdBoxContent += `<br>APD Trailer Interchange Premium: ${formatter.format(apd_ti_prem)}`;
+    }
+    
+    // Add TSL premium if included
+    if (apd_tsl_prem > 0) {
+      apdBoxContent += `<br>Towing, Storage and Labor Premium: ${formatter.format(apd_tsl_prem)}`;
+    }
+    
+    // Add total if subcoverages exist
+    if (apd_ti_prem > 0 || apd_tsl_prem > 0) {
+      apdBoxContent += `<br><strong>Total APD Premium: ${formatter.format(apd_premium_total)}</strong>`;
+    }
+    
+    apdBoxContent += `<div style="margin-top: 10px;">`;
+    apdBoxContent += `<a href="#" onclick="toggleApdDetails(); return false;" style="color: #6B4C9A; text-decoration: underline;">View Vehicle Breakdown</a>`;
+    apdBoxContent += `</div>`;
+    apdBoxContent += `<div id="apd_details" style="display: none; margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">`;
+    apdBoxContent += `<div style="margin-bottom: 15px; padding: 10px; background-color: #e8f4f8; border-radius: 5px;">`;
+    apdBoxContent += `<strong>Total Insured Value (TIV):</strong> ${formatter.format(totalTIV)}<br>`;
+    apdBoxContent += `<strong>Number of Vehicles:</strong> ${numberOfVehicles}<br>`;
+    apdBoxContent += `<strong>Equipment Rate:</strong> ${equipmentRate.toFixed(4)}<br>`;  
+    apdBoxContent += `<strong>Policy Rate (pre loss ratio):</strong> ${policyRate.toFixed(6)}<br>`;
+    apdBoxContent += `<strong>Loss Ratio Year 1:</strong> ${(lossRatioYear1 * 100).toFixed(2)}%<br>`;
+    apdBoxContent += `<strong>Loss Ratio Year 2:</strong> ${(lossRatioYear2 * 100).toFixed(2)}%<br>`;
+    apdBoxContent += `<strong>Loss Ratio Year 3:</strong> ${(lossRatioYear3 * 100).toFixed(2)}%<br>`;
+    apdBoxContent += `<strong>Loss Factor Year 1:</strong> ${lossFactorYear1.toFixed(4)}<br>`;
+    apdBoxContent += `<strong>Loss Factor Year 2:</strong> ${lossFactorYear2.toFixed(4)}<br>`;
+    apdBoxContent += `<strong>Loss Factor Year 3:</strong> ${lossFactorYear3.toFixed(4)}<br>`;
+    apdBoxContent += `<strong>Final Loss Ratio Factor:</strong> ${finalLossRatioFactor.toFixed(4)}<br>`;
+    apdBoxContent += `<strong>Manual Premium:</strong> ${formatter.format(manualPremium)}<br>`;
+    apdBoxContent += `<strong>Schedule Rating Mod:</strong> ${apdScheduleMod.toFixed(2)}<br>`;
+    apdBoxContent += `<strong>Modified Premium:</strong> ${formatter.format(modifiedPremium)}<br>`;
+    apdBoxContent += `<hr style="margin: 10px 0; border: none; border-top: 1px solid #ccc;">`;
+    apdBoxContent += `<strong>MP YIB Factor (${yearsInBusiness} years):</strong> ${apdMpYibFactor.toFixed(6)}<br>`;
+    apdBoxContent += `<strong>MP YIB Minimum:</strong> ${formatter.format(mpYibMinimum)} <span style="font-size: 0.85em;">(${apdMpYibFactor.toFixed(6)} × ${formatter.format(totalTIV)} × ${apdScheduleMod.toFixed(2)})</span><br>`;
+    apdBoxContent += `<strong>Total APD Losses (3 years):</strong> ${formatter.format(totalApdLosses)}<br>`;
+    apdBoxContent += `<strong>Years for Loss Calc:</strong> ${yearsForLossCalc}<br>`;
+    apdBoxContent += `<strong>60% LR Minimum:</strong> ${formatter.format(lossRatioMinimum)}`;
+    if (yearsForLossCalc > 0 && totalApdLosses > 0) {
+      apdBoxContent += ` <span style="font-size: 0.85em;">(${formatter.format(totalApdLosses)} / (0.6 × ${yearsForLossCalc}))</span>`;
+    } else {
+      apdBoxContent += ` <span style="font-size: 0.85em;">(Not applicable)</span>`;
+    }
+    apdBoxContent += `<br>`;
+    apdBoxContent += `<hr style="margin: 10px 0; border: none; border-top: 1px solid #ccc;">`;
+    apdBoxContent += `<strong style="color: #d9534f;">Final Premium:</strong> <strong style="color: #d9534f;">${formatter.format(finalPremium)}</strong>`;
+    if (minimumAppliedType !== 'Modified Premium') {
+      apdBoxContent += ` <span style="color: #d9534f; font-size: 0.9em;">(${minimumAppliedType} Applied)</span>`;
+    }
+    apdBoxContent += `<br>`;
+    apdBoxContent += `</div>`;
+    
+    // FULL BREAKDOWN TABLE WITH ALL FACTORS
+    apdBoxContent += `<table style="width: 100%; border-collapse: collapse; font-size: 0.8em;">`;
+    
+    apdPremiumDetails.forEach(vehicle => {
+      // FIRST ROW - Vehicle identification and vehicle-level factors
+      apdBoxContent += `<tr style="border-bottom: 2px solid #ddd; background-color: #f0f0f0;">`;
+      apdBoxContent += `<th style="text-align: left; padding: 8px;">Vehicle</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Value</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">% TIV</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Deductible</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Value Factor</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Class Factor</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Age Factor</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Veh Rate</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Weighted</th>`;
+      apdBoxContent += `</tr>`;
+      
+      apdBoxContent += `<tr style="border-bottom: 1px solid #ccc;">`;
+      apdBoxContent += `<td style="padding: 8px;">V${vehicle.vehicleNum}`;
+      if (vehicle.isPowerUnit && vehicle.isTrailer) apdBoxContent += ` (P+T)`;
+      else if (vehicle.isPowerUnit) apdBoxContent += ` (P)`;
+      else if (vehicle.isTrailer) apdBoxContent += ` (T)`;
+      apdBoxContent += `</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${formatter.format(vehicle.vehicleValue)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${(vehicle.pctOfTIV * 100).toFixed(2)}%</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${formatter.format(vehicle.deductible)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.vehicleValueFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.rateFactorClass.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.vehicleAgeFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.vehicleRate.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.weightedRate.toFixed(7)}</td>`;
+      apdBoxContent += `</tr>`;
+      
+      // SECOND ROW - Policy-level factors (first 8)
+      apdBoxContent += `<tr style="border-bottom: 1px solid #ddd; background-color: #fafafa;">`;
+      apdBoxContent += `<th style="text-align: left; padding: 8px;"></th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Equip</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">OOS</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Fleet</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Radius</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Density</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">State</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">YIB</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Driver Age</th>`;
+      apdBoxContent += `</tr>`;
+      
+      apdBoxContent += `<tr style="border-bottom: 1px solid #ccc;">`;
+      apdBoxContent += `<td style="padding: 8px;"></td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${equipmentRate.toFixed(4)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.oosFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.fleetSizeFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.radiusFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.densityFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.stateFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.yibFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.driverAgeFactor.toFixed(6)}</td>`;
+      apdBoxContent += `</tr>`;
+      
+      // THIRD ROW - Driver Experience, Driver Violations, Driver Crashes, Deductible, Final Rate, and Vehicle Premium
+      apdBoxContent += `<tr style="border-bottom: 1px solid #ddd; background-color: #f0f0f0;">`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;" colspan="2">Driver Exp:</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Driver Crash:</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Driver Viol:</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;" colspan="2">Deductible:</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;" colspan="2">Final Rate:</th>`;
+      apdBoxContent += `<th style="text-align: right; padding: 8px;">Vehicle Premium:</th>`;
+      apdBoxContent += `</tr>`;
+      
+      apdBoxContent += `<tr style="border-bottom: 2px solid #999; margin-bottom: 10px;">`;
+      apdBoxContent += `<td colspan="2" style="text-align: right; padding: 8px;">${vehicle.driverExpFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.driverCrashesFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px;">${vehicle.driverViolationsFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td colspan="2" style="text-align: right; padding: 8px;">${vehicle.deductibleFactor.toFixed(6)}</td>`;
+      apdBoxContent += `<td colspan="2" style="text-align: right; padding: 8px;">${vehicle.finalRate.toFixed(4)}</td>`;
+      apdBoxContent += `<td style="text-align: right; padding: 8px; font-weight: bold;">${formatter.format(vehicle.vehiclePremium)}</td>`;
+      apdBoxContent += `</tr>`;
+    });
+    
+    apdBoxContent += `</table></div>`;
+    
+    // Add fees section AFTER the collapsible details
+    apdBoxContent += `<hr class="result-divider">`;
+    if (apd_policy_fee > 0) apdBoxContent += `APD Policy Fee: ${formatter.format(apd_policy_fee)}<br>`;
+    if (apd_ti_policy_fee > 0) apdBoxContent += `TI Policy Fee: ${formatter.format(apd_ti_policy_fee)}<br>`;
+    if (apd_broker_fee > 0) apdBoxContent += `Broker Fee: ${formatter.format(apd_broker_fee)}<br>`;
+    apdBoxContent += `Total APD Fees: ${formatter.format(apd_fees)}`;
+    apdBoxContent += `<hr class="result-divider">`;
+    apdBoxContent += `<span class="coverage-total-due">Total APD Due: ${formatter.format(apd_total_due)}</span>`;
+    
+    premiumBoxesHtml += `<div class="result-premium-box">${apdBoxContent}</div>`;
+  }
+}
+
+// --- END APD CALCULATION ---
