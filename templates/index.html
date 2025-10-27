@@ -1077,6 +1077,10 @@ function addVehicleRow() {
           const fleetData = await fleetResponse.json();
           const fleetFactor = parseFloat(fleetData.rate_factor || 1.0);
           
+          console.log('DEBUG Fleet Size - Looking up:', {
+            effective_date: policyDate,
+             num_vehicles: vehicleCount
+});
          
          // Count power units for loss history calculation
 const vehicleRowsForPowerCount = document.querySelectorAll('.vehicle-row');

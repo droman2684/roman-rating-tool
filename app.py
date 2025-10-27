@@ -1,8 +1,8 @@
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor  # ← ADD THIS
 from flask import Flask, request, jsonify, render_template
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime  # ← ADD THIS
 
 # --- Database Connection Configuration ---
 DB_HOST = "localhost"
@@ -4887,8 +4887,7 @@ def calculate_policy_taxes():
         return jsonify({'error': str(e)}), 500
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
 
 # --- RADIUS FACTOR ENDPOINT ---
 @app.route("/rate/radius_factor", methods=["POST"])
@@ -5773,3 +5772,6 @@ def rate_bipd():
 @app.route("/test", methods=["GET"])
 def test():
     return jsonify({"status": "working"})
+
+if __name__ == '__main__':
+    app.run(debug=True)
