@@ -1039,6 +1039,7 @@ function addVehicleRow() {
       let premiumBoxesHtml = ''; 
       let total_policy_premium = 0.0;
       let total_policy_fees = 0.0; 
+      let total_policy_taxes = 0;
 
       try {
         if (include_al && carrier_plan === 'CW Plan') {
@@ -2048,6 +2049,7 @@ console.log('DEBUG - SS UMBI ILF Factor:', umbiIlfFactor);
                                     } catch (error) {
                                         console.error('Error calculating AL taxes:', error);
                                     }
+                                    total_policy_taxes += al_taxes;  // ← ADD HERE
 
                                     // Update total to include taxes
                                     al_total_due = totalAlPremium + al_fees + al_taxes;
@@ -2967,6 +2969,7 @@ if (include_apd) {
     } catch (error) {
         console.error('Error calculating APD taxes:', error);
     }
+    total_policy_taxes += apd_taxes;  // ← ADD HERE
 
     // Update total to include taxes
     apd_total_due = finalPremium + apd_fees + apd_taxes;
@@ -5240,6 +5243,8 @@ if (include_al && carrier_plan === 'Non Admitted') {
                       } catch (error) {
                           console.error('Error calculating SS AL taxes:', error);
                       }
+                      total_policy_taxes += ss_al_taxes;  // ← ADD HERE
+
 
                       // Update total to include taxes
                       al_total_due = totalSsAlPremium + al_fees + ss_al_taxes;
@@ -5479,7 +5484,8 @@ if (include_ntl) {
   const policy_fee = ntlPolicyFee.fee;
   
   const fees = uw_fee + policy_fee + ntl_broker_fee;
-  const total_due = premium + fees;
+  let total_due = premium + fees;
+
 
   total_policy_premium += premium;
   total_policy_fees += fees;
@@ -5490,8 +5496,48 @@ if (include_ntl) {
   if (uw_fee > 0) boxContent += `UW Fee: ${formatter.format(uw_fee)}<br>`;
   if (ntl_broker_fee > 0) boxContent += `Broker Fee: ${formatter.format(ntl_broker_fee)}<br>`;
   boxContent += `Total NTL Fees: ${formatter.format(fees)}`;
-  boxContent += `<hr class="result-divider">`;
-  boxContent += `<span class="coverage-total-due">Total NTL Due: ${formatter.format(total_due)}</span>`;
+boxContent += `<hr class="result-divider">`;
+
+// Calculate NTL taxes
+let ntl_taxes = 0;
+try {
+    const taxResponse = await fetch('/calculate_taxes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            state_code: stateCode,
+            coverage_type: 'NTL',
+            premium: premium,
+            effective_date: policyDate
+        })
+    });
+    const taxData = await taxResponse.json();
+    
+    if (taxData.taxes && taxData.taxes.length > 0) {
+        boxContent += '<div style="margin-top: 10px;"><strong>Taxes:</strong><br>';
+        boxContent += '<div style="padding-left: 15px; font-size: 0.95em;">';
+        
+        taxData.taxes.forEach(tax => {
+            const taxLabel = tax.tax_type === 'PERCENTAGE' 
+                ? `${tax.tax_name} (${tax.tax_rate}%)` 
+                : tax.tax_name;
+            boxContent += `${taxLabel}: ${formatter.format(tax.tax_amount)}<br>`;
+        });
+        
+        boxContent += `</div><strong>Total Taxes: ${formatter.format(taxData.total_tax)}</strong></div>`;
+        boxContent += `<hr class="result-divider">`;
+        
+        ntl_taxes = taxData.total_tax;
+    }
+} catch (error) {
+    console.error('Error calculating NTL taxes:', error);
+}
+total_policy_taxes += ntl_taxes;  // ← ADD HERE
+
+// Update total to include taxes
+total_due = premium + fees + ntl_taxes;
+
+boxContent += `<span class="coverage-total-due">Total NTL Due: ${formatter.format(total_due)}</span>`;
   premiumBoxesHtml += `<div class="result-premium-box">${boxContent}</div>`;
 }
 
@@ -5559,6 +5605,7 @@ try {
 } catch (error) {
     console.error('Error calculating TGL taxes:', error);
 }
+total_policy_taxes += tgl_taxes;  // ← ADD HERE
 
 // Update total to include taxes
 total_due = premium_total + fees + tgl_taxes;
@@ -5656,6 +5703,7 @@ try {
 } catch (error) {
     console.error('Error calculating MTC taxes:', error);
 }
+total_policy_taxes += mtc_taxes;  // ← ADD HERE
 
 // Update total to include taxes
 mtc_total_due = mtc_premium_total + mtc_fees_total + mtc_taxes;
@@ -5664,14 +5712,17 @@ mtcBoxContent += `<span class="coverage-total-due">Total MTC Due: ${formatter.fo
   premiumBoxesHtml += `<div class="result-premium-box">${mtcBoxContent}</div>`;
 }
 
-const total_policy_due = total_policy_premium + total_policy_fees;
+const total_policy_due = total_policy_premium + total_policy_fees + total_policy_taxes;
 
 let finalHtml = premiumBoxesHtml; 
 finalHtml += `<div class="result-totals-box">`;
 finalHtml += `Total Policy Premium: ${formatter.format(total_policy_premium)}<br>`;
-finalHtml += `Total Policy Fees: ${formatter.format(total_policy_fees)}`;
+finalHtml += `Total Policy Fees: ${formatter.format(total_policy_fees)}<br>`;
+finalHtml += `Total Policy Taxes: ${formatter.format(total_policy_taxes)}`;
 finalHtml += `</div>`;
-finalHtml += `<div class="grand-total">Total Due: ${formatter.format(total_policy_due)}</div>`;
+finalHtml += `<div class="grand-total">Grand Total Due: ${formatter.format(total_policy_due)}</div>`;
+
+
 
 const includedCoveragesForTax = [];
 if (include_al) includedCoveragesForTax.push('AL');
