@@ -1994,7 +1994,7 @@ console.log('DEBUG - SS UMBI ILF Factor:', umbiIlfFactor);
                                     const al_broker_fee = parseFloat(document.getElementById('al_broker_fee').value || 0);
                                     
                                     const al_fees = al_uw_fee + al_policy_fee + al_broker_fee;
-                                    const al_total_due = totalAlPremium + al_fees;
+                                    let al_total_due = totalAlPremium + al_fees;
                                     
                                     total_policy_fees += al_fees;
                                     
@@ -2014,11 +2014,48 @@ console.log('DEBUG - SS UMBI ILF Factor:', umbiIlfFactor);
                                     if (al_policy_fee > 0) alSummaryContent += `Policy Fee: ${formatter.format(al_policy_fee)}<br>`;
                                     if (al_broker_fee > 0) alSummaryContent += `Broker Fee: ${formatter.format(al_broker_fee)}<br>`;
                                     alSummaryContent += `Total AL Fees: ${formatter.format(al_fees)}`;
-                                    alSummaryContent += `<hr class="result-divider">`;
+                                    // Calculate AL taxes
+                                    let al_taxes = 0;
+                                    try {
+                                        const taxResponse = await fetch('/calculate_taxes', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                state_code: stateCode,
+                                                coverage_type: 'AL',
+                                                premium: totalAlPremium,
+                                                effective_date: policyDate
+                                            })
+                                        });
+                                        const taxData = await taxResponse.json();
+                                        
+                                        if (taxData.taxes && taxData.taxes.length > 0) {
+                                            alSummaryContent += '<div style="margin-top: 10px;"><strong>Taxes:</strong><br>';
+                                            alSummaryContent += '<div style="padding-left: 15px; font-size: 0.95em;">';
+                                            
+                                            taxData.taxes.forEach(tax => {
+                                                const taxLabel = tax.tax_type === 'PERCENTAGE' 
+                                                    ? `${tax.tax_name} (${tax.tax_rate}%)` 
+                                                    : tax.tax_name;
+                                                alSummaryContent += `${taxLabel}: ${formatter.format(tax.tax_amount)}<br>`;
+                                            });
+                                            
+                                            alSummaryContent += `</div><strong>Total Taxes: ${formatter.format(taxData.total_tax)}</strong></div>`;
+                                            alSummaryContent += `<hr class="result-divider">`;
+                                            
+                                            al_taxes = taxData.total_tax;
+                                        }
+                                    } catch (error) {
+                                        console.error('Error calculating AL taxes:', error);
+                                    }
+
+                                    // Update total to include taxes
+                                    al_total_due = totalAlPremium + al_fees + al_taxes;
+
                                     alSummaryContent += `<span class="coverage-total-due">Total AL Due: ${formatter.format(al_total_due)}</span>`;
-                                    premiumBoxesHtml += `<div class="result-premium-box" style="background-color: #f0f4ff; border: 2px solid #6B4C9A;">${alSummaryContent}</div>`;
-                                  }
-                                          }
+                                                                        premiumBoxesHtml += `<div class="result-premium-box" style="background-color: #f0f4ff; border: 2px solid #6B4C9A;">${alSummaryContent}</div>`;
+                                                                      }
+                                                                              }
 
 // --- APD (Auto Physical Damage) CALCULATION ---
 const include_apd = document.getElementById('check_apd').checked;
@@ -2744,7 +2781,7 @@ if (include_apd) {
     // Calculate combined premium and fees
     const apd_premium_total = finalPremium + apd_ti_prem + apd_tsl_prem;
     const apd_fees = apd_policy_fee + apd_ti_policy_fee + apd_broker_fee;
-    const apd_total_due = apd_premium_total + apd_fees;
+    let apd_total_due = finalPremium + apd_fees;
     
     total_policy_premium += apd_premium_total;
     total_policy_fees += apd_fees;
@@ -2895,11 +2932,50 @@ if (include_apd) {
     if (apd_broker_fee > 0) apdBoxContent += `Broker Fee: ${formatter.format(apd_broker_fee)}<br>`;
     apdBoxContent += `Total APD Fees: ${formatter.format(apd_fees)}`;
     apdBoxContent += `<hr class="result-divider">`;
+
+    // Calculate APD taxes
+    let apd_taxes = 0;
+    try {
+        const taxResponse = await fetch('/calculate_taxes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                state_code: stateCode,
+                coverage_type: 'APD',
+                premium: finalPremium,
+                effective_date: policyDate
+            })
+        });
+        const taxData = await taxResponse.json();
+        
+        if (taxData.taxes && taxData.taxes.length > 0) {
+            apdBoxContent += '<div style="margin-top: 10px;"><strong>Taxes:</strong><br>';
+            apdBoxContent += '<div style="padding-left: 15px; font-size: 0.95em;">';
+            
+            taxData.taxes.forEach(tax => {
+                const taxLabel = tax.tax_type === 'PERCENTAGE' 
+                    ? `${tax.tax_name} (${tax.tax_rate}%)` 
+                    : tax.tax_name;
+                apdBoxContent += `${taxLabel}: ${formatter.format(tax.tax_amount)}<br>`;
+            });
+            
+            apdBoxContent += `</div><strong>Total Taxes: ${formatter.format(taxData.total_tax)}</strong></div>`;
+            apdBoxContent += `<hr class="result-divider">`;
+            
+            apd_taxes = taxData.total_tax;
+        }
+    } catch (error) {
+        console.error('Error calculating APD taxes:', error);
+    }
+
+    // Update total to include taxes
+    apd_total_due = finalPremium + apd_fees + apd_taxes;
+
     apdBoxContent += `<span class="coverage-total-due">Total APD Due: ${formatter.format(apd_total_due)}</span>`;
-    
-    premiumBoxesHtml += `<div class="result-premium-box">${apdBoxContent}</div>`;
-  }
-}
+        
+        premiumBoxesHtml += `<div class="result-premium-box">${apdBoxContent}</div>`;
+      }
+    }
 
 // --- END APD CALCULATION ---
         
@@ -5108,7 +5184,7 @@ if (include_al && carrier_plan === 'Non Admitted') {
                       const al_broker_fee = parseFloat(document.getElementById('al_broker_fee').value || 0);
                       
                       const al_fees = al_uw_fee + al_policy_fee + al_broker_fee;
-                      const al_total_due = totalSsAlPremium + al_fees;
+                      let al_total_due = totalSsAlPremium + al_fees;
                       
                       total_policy_fees += al_fees;
                       
@@ -5129,6 +5205,46 @@ if (include_al && carrier_plan === 'Non Admitted') {
                       if (al_broker_fee > 0) ssAlSummaryContent += `Broker Fee: ${formatter.format(al_broker_fee)}<br>`;
                       ssAlSummaryContent += `Total AL Fees: ${formatter.format(al_fees)}`;
                       ssAlSummaryContent += `<hr class="result-divider">`;
+
+                      // Calculate SS AL taxes
+                      let ss_al_taxes = 0;
+                      try {
+                          const taxResponse = await fetch('/calculate_taxes', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                  state_code: stateCode,
+                                  coverage_type: 'AL',
+                                  premium: totalSsAlPremium,
+                                  effective_date: policyDate
+                              })
+                          });
+                          const taxData = await taxResponse.json();
+                          
+                          if (taxData.taxes && taxData.taxes.length > 0) {
+                              ssAlSummaryContent += '<div style="margin-top: 10px;"><strong>Taxes:</strong><br>';
+                              ssAlSummaryContent += '<div style="padding-left: 15px; font-size: 0.95em;">';
+                              
+                              taxData.taxes.forEach(tax => {
+                                  const taxLabel = tax.tax_type === 'PERCENTAGE' 
+                                      ? `${tax.tax_name} (${tax.tax_rate}%)` 
+                                      : tax.tax_name;
+                                  ssAlSummaryContent += `${taxLabel}: ${formatter.format(tax.tax_amount)}<br>`;
+                              });
+                              
+                              ssAlSummaryContent += `</div><strong>Total Taxes: ${formatter.format(taxData.total_tax)}</strong></div>`;
+                              ssAlSummaryContent += `<hr class="result-divider">`;
+                              
+                              ss_al_taxes = taxData.total_tax;
+                          }
+                      } catch (error) {
+                          console.error('Error calculating SS AL taxes:', error);
+                      }
+
+                      // Update total to include taxes
+                      al_total_due = totalSsAlPremium + al_fees + ss_al_taxes;
+
+                      ssAlSummaryContent += `<span class="coverage-total-due">Total AL Due: ${formatter.format(al_total_due)}</span>`;;
                       ssAlSummaryContent += `<span class="coverage-total-due">Total AL Due: ${formatter.format(al_total_due)}</span>`;
                       premiumBoxesHtml += `<div class="result-premium-box" style="background-color: #f0f4ff; border: 2px solid #6B4C9A;">${ssAlSummaryContent}</div>`;
                     }
@@ -5351,11 +5467,6 @@ if (include_al && carrier_plan === 'Non Admitted') {
   }
 }  
 
-
-
-
-
-
         const uw_rate = await fetchUwFeeRate();
 
 if (include_ntl) {
@@ -5399,7 +5510,7 @@ if (include_tgl) {
   const policy_fee = tglPolicyFee.fee;
   
   const fees = uw_fee + policy_fee + tgl_broker_fee;
-  const total_due = premium_total + fees;
+  let total_due = premium_total + fees;
 
   total_policy_premium += premium_total;
   total_policy_fees += fees;
@@ -5412,8 +5523,47 @@ if (include_tgl) {
   if (uw_fee > 0) boxContent += `UW Fee: ${formatter.format(uw_fee)}<br>`;
   if (tgl_broker_fee > 0) boxContent += `Broker Fee: ${formatter.format(tgl_broker_fee)}<br>`;
   boxContent += `Total TGL Fees: ${formatter.format(fees)}`;
-  boxContent += `<hr class="result-divider">`;
-  boxContent += `<span class="coverage-total-due">Total TGL Due: ${formatter.format(total_due)}</span>`;
+boxContent += `<hr class="result-divider">`;
+
+// Calculate TGL taxes
+let tgl_taxes = 0;
+try {
+    const taxResponse = await fetch('/calculate_taxes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            state_code: stateCode,
+            coverage_type: 'TGL',
+            premium: premium_total,
+            effective_date: policyDate
+        })
+    });
+    const taxData = await taxResponse.json();
+    
+    if (taxData.taxes && taxData.taxes.length > 0) {
+        boxContent += '<div style="margin-top: 10px;"><strong>Taxes:</strong><br>';
+        boxContent += '<div style="padding-left: 15px; font-size: 0.95em;">';
+        
+        taxData.taxes.forEach(tax => {
+            const taxLabel = tax.tax_type === 'PERCENTAGE' 
+                ? `${tax.tax_name} (${tax.tax_rate}%)` 
+                : tax.tax_name;
+            boxContent += `${taxLabel}: ${formatter.format(tax.tax_amount)}<br>`;
+        });
+        
+        boxContent += `</div><strong>Total Taxes: ${formatter.format(taxData.total_tax)}</strong></div>`;
+        boxContent += `<hr class="result-divider">`;
+        
+        tgl_taxes = taxData.total_tax;
+    }
+} catch (error) {
+    console.error('Error calculating TGL taxes:', error);
+}
+
+// Update total to include taxes
+total_due = premium_total + fees + tgl_taxes;
+
+boxContent += `<span class="coverage-total-due">Total TGL Due: ${formatter.format(total_due)}</span>`;
   premiumBoxesHtml += `<div class="result-premium-box">${boxContent}</div>`;
 }
 
@@ -5454,7 +5604,7 @@ if (include_tria && mtc_tria_base > 0) {
 
 const mtc_fees_total = mtc_uw_fee + mtc_policy_fee + ti_policy_fee + mtc_broker_fee;
 const mtc_premium_total = mtc_prem + ti_prem + mtc_tria_prem;
-const mtc_total_due = mtc_premium_total + mtc_fees_total;
+let mtc_total_due = mtc_premium_total + mtc_fees_total;
 
 total_policy_fees += mtc_fees_total;
 
@@ -5469,9 +5619,48 @@ if (include_mtc || include_ti) {
   if (ti_policy_fee > 0) mtcBoxContent += `TI Policy Fee: ${formatter.format(ti_policy_fee)}<br>`;
   if (mtc_uw_fee > 0) mtcBoxContent += `UW Fee: ${formatter.format(mtc_uw_fee)}<br>`; 
   if (mtc_broker_fee > 0) mtcBoxContent += `Broker Fee: ${formatter.format(mtc_broker_fee)}<br>`;
-  mtcBoxContent += `Total MTC Fees: ${formatter.format(mtc_fees_total)}`;
-  mtcBoxContent += `<hr class="result-divider">`;
-  mtcBoxContent += `<span class="coverage-total-due">Total MTC Due: ${formatter.format(mtc_total_due)}</span>`;
+ mtcBoxContent += `Total MTC Fees: ${formatter.format(mtc_fees_total)}`;
+mtcBoxContent += `<hr class="result-divider">`;
+
+// Calculate MTC taxes
+let mtc_taxes = 0;
+try {
+    const taxResponse = await fetch('/calculate_taxes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            state_code: stateCode,
+            coverage_type: 'MTC',
+            premium: mtc_premium_total,
+            effective_date: policyDate
+        })
+    });
+    const taxData = await taxResponse.json();
+    
+    if (taxData.taxes && taxData.taxes.length > 0) {
+        mtcBoxContent += '<div style="margin-top: 10px;"><strong>Taxes:</strong><br>';
+        mtcBoxContent += '<div style="padding-left: 15px; font-size: 0.95em;">';
+        
+        taxData.taxes.forEach(tax => {
+            const taxLabel = tax.tax_type === 'PERCENTAGE' 
+                ? `${tax.tax_name} (${tax.tax_rate}%)` 
+                : tax.tax_name;
+            mtcBoxContent += `${taxLabel}: ${formatter.format(tax.tax_amount)}<br>`;
+        });
+        
+        mtcBoxContent += `</div><strong>Total Taxes: ${formatter.format(taxData.total_tax)}</strong></div>`;
+        mtcBoxContent += `<hr class="result-divider">`;
+        
+        mtc_taxes = taxData.total_tax;
+    }
+} catch (error) {
+    console.error('Error calculating MTC taxes:', error);
+}
+
+// Update total to include taxes
+mtc_total_due = mtc_premium_total + mtc_fees_total + mtc_taxes;
+
+mtcBoxContent += `<span class="coverage-total-due">Total MTC Due: ${formatter.format(mtc_total_due)}</span>`;
   premiumBoxesHtml += `<div class="result-premium-box">${mtcBoxContent}</div>`;
 }
 

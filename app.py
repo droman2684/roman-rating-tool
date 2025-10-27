@@ -4668,7 +4668,8 @@ def get_al_uw_fee_rate():
     except Exception as e:
         print(f"AL UW Fee Rate Error: {e}")        
         return jsonify({"error": str(e)}), 500
-    
+
+# SINGLE TAXES    
 @app.route('/calculate_taxes', methods=['POST'])
 def calculate_taxes():
     """
@@ -4696,12 +4697,12 @@ def calculate_taxes():
         
         # Get applicable taxes for this state/coverage/date
         query = """
-            SELECT tax_name, tax_type, tax_rate
+              SELECT DISTINCT ON (tax_name) tax_name, tax_type, tax_rate
             FROM taxes_table
             WHERE state_code = %s
             AND coverage_type = %s
             AND effective_date <= %s
-            ORDER BY effective_date DESC
+            ORDER BY tax_name, effective_date DESC
         """
         
         cursor.execute(query, (state_code, coverage_type, effective_date))
