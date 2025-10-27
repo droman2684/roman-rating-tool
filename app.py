@@ -1,6 +1,8 @@
 import psycopg2
+from psycopg2.extras import RealDictCursor
 from flask import Flask, request, jsonify, render_template
 from decimal import Decimal
+from datetime import datetime
 
 # --- Database Connection Configuration ---
 DB_HOST = "localhost"
